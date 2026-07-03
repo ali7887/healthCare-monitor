@@ -1,0 +1,1 @@
+"""CareTrace backend application package."""
