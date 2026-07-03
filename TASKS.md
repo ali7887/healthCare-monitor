@@ -30,19 +30,19 @@
 - [x] Add migrations strategy
 
 ## Phase 3 — AI orchestration
-- [ ] Define provider interface
-- [ ] Implement OpenAI provider
-- [ ] Implement Ollama provider
-- [ ] Add prompt versioning
-- [ ] Capture raw response
-- [ ] Normalize provider output shape
+- [x] Define provider interface
+- [x] Implement OpenAI provider
+- [x] Implement Ollama provider
+- [x] Add prompt versioning
+- [x] Capture raw response
+- [x] Normalize provider output shape
 
 ## Phase 4 — Extraction schemas
-- [ ] Define ClinicalNote schema
-- [ ] Define Vitals schema
-- [ ] Define Medication schema
-- [ ] Define validation issue schema
-- [ ] Define process request/response schemas
+- [x] Define ClinicalNote schema
+- [x] Define Vitals schema
+- [x] Define Medication schema
+- [x] Define validation issue schema
+- [x] Define process request/response schemas
 
 ## Phase 5 — Validation engine
 - [ ] Add schema validation handling

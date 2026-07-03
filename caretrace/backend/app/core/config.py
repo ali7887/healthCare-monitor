@@ -34,9 +34,17 @@ class Settings(BaseSettings):
         "postgresql+psycopg://caretrace:caretrace@localhost:5432/caretrace"
     )
 
-    # Provider defaults (reserved for later phases; unused in Phase 1)
+    # Default provider selection (used by the orchestration factory)
     default_provider: str = "openai"
     default_model: str = "gpt-4o-mini"
+
+    # OpenAI provider
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
+
+    # Ollama provider (local)
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5"
 
 
 @lru_cache
