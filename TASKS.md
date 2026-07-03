@@ -22,12 +22,12 @@
 - [x] Add backend `.env.example`
 
 ## Phase 2 — Persistence models
-- [ ] Create Run model
-- [ ] Create ValidationLog model
-- [ ] Create ReviewItem model
-- [ ] Create EvaluationResult model
-- [ ] Define enums and statuses
-- [ ] Add migrations strategy
+- [x] Create Run model
+- [x] Create ValidationLog model
+- [x] Create ReviewItem model
+- [x] Create EvaluationResult model
+- [x] Define enums and statuses
+- [x] Add migrations strategy
 
 ## Phase 3 — AI orchestration
 - [ ] Define provider interface
