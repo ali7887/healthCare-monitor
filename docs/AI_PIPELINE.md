@@ -1,7 +1,7 @@
 # AI_PIPELINE.md
 
 ## Goal
-Define the end-to-end AI processing pipeline for CareTrace.
+Define the end-to-end AI processing pipeline for healthCare-monitor.
 
 ## Pipeline stages
 

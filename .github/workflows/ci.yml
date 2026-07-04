@@ -1,0 +1,146 @@
+name: CI
+
+# Quality gate for healthCare-monitor. Runs the same commands developers run
+# locally (see docs/DEMO_RUNBOOK.md → "CI quality gate"). No Docker, no hosted
+# database — the backend uses the isolated, self-seeding SQLite workflow.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch: # allows manual runs (used to refresh screenshots on demand)
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # --- Blocking gate: frontend type-check, unit tests, production build ------
+  frontend:
+    name: Frontend (types · unit · build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: caretrace/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: caretrace/frontend/package-lock.json
+      - run: npm ci
+      - name: Type-check, unit tests, production build
+        run: npm run ci:frontend
+
+  # --- Blocking gate: backend tests ------------------------------------------
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: caretrace/backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv (manages Python + deps)
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - run: uv run pytest -q
+
+  # --- Blocking gate: browser E2E happy path ---------------------------------
+  # Only runs if the fast gates pass, to avoid spending browser minutes on a
+  # broken build. Playwright owns both servers (isolated seeded SQLite backend +
+  # production frontend build) exactly as it does locally.
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [frontend, backend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: caretrace/frontend/package-lock.json
+      - name: Install uv (for the E2E backend)
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Sync backend deps
+        working-directory: caretrace/backend
+        run: uv sync
+      - name: Install frontend deps
+        working-directory: caretrace/frontend
+        run: npm ci
+      - name: Install Google Chrome for Playwright
+        working-directory: caretrace/frontend
+        # Installs the real Chrome channel + OS deps, matching the local
+        # `channel: "chrome"` config (chosen because the Playwright browser CDN
+        # is geo-blocked on the primary dev machine).
+        run: npx playwright install --with-deps chrome
+      - name: Run E2E happy-path suite
+        working-directory: caretrace/frontend
+        run: npm run ci:e2e
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: caretrace/frontend/playwright-report/
+          retention-days: 14
+      - name: Upload failure traces
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: caretrace/frontend/test-results/
+          retention-days: 7
+
+  # --- Non-blocking: refresh demo screenshots as an artifact -----------------
+  # Screenshots add ~3 min (build + capture), so they run only on main or when
+  # triggered manually — not on every PR. They are published as an artifact for
+  # review; the committed copies in docs/screenshots/ remain the source of truth.
+  screenshots:
+    name: Screenshots (artifact)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [frontend, backend]
+    if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: caretrace/frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Sync backend deps
+        working-directory: caretrace/backend
+        run: uv sync
+      - name: Install frontend deps
+        working-directory: caretrace/frontend
+        run: npm ci
+      - name: Install Google Chrome for Playwright
+        working-directory: caretrace/frontend
+        run: npx playwright install --with-deps chrome
+      - name: Capture screenshots
+        working-directory: caretrace/frontend
+        run: npm run e2e:screens
+      - name: Upload screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-screenshots
+          path: docs/screenshots/*.png
+          retention-days: 14

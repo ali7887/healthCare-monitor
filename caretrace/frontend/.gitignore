@@ -1,0 +1,14 @@
+/node_modules
+/.next/
+/out/
+/build
+*.tsbuildinfo
+next-env.d.ts
+.env*.local
+.DS_Store
+npm-debug.log*
+
+# Playwright E2E artifacts (reports/traces are regenerated; screenshots live in docs/)
+/playwright-report/
+/test-results/
+/playwright/.cache/

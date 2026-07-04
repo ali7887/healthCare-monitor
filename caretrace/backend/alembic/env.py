@@ -1,4 +1,4 @@
-"""Alembic migration environment for CareTrace.
+"""Alembic migration environment for healthCare-monitor.
 
 The database URL is taken from application settings (DATABASE_URL) and the
 target metadata is `Base.metadata`, which is populated by importing
@@ -12,6 +12,10 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import get_settings
 from app.db.base import Base
+
+# Import the models package so every table registers on Base.metadata
+# (base.py no longer imports models to avoid an import cycle).
+import app.models  # noqa: E402,F401
 
 config = context.config
 

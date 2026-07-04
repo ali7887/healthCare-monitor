@@ -1,76 +1,90 @@
-# DEPLOYMENT.md
+# Deployment (Local & Demo)
 
-## Deployment goal
-Support simple MVP deployment for demo and portfolio use.
+## Goal
+Reliable, reproducible local and demo setup for portfolio/interview use. The
+default path needs **no Docker, no Postgres, and no API key**. Production
+hardening (TLS, managed Postgres, secrets management, scaling) is intentionally
+out of scope for this MVP.
 
-## Local stack
-- frontend: Next.js
-- backend: FastAPI
-- database: Postgres via Docker Compose
+## Stack
+- Frontend: Next.js 15 (`caretrace/frontend`)
+- Backend: FastAPI (`caretrace/backend`)
+- Database: SQLite by default (local file); Postgres optional and supported
 
 ## Environment variables
-Root:
-- shared URLs if needed
 
-Backend:
-- `DATABASE_URL`
-- `OPENAI_API_KEY`
-- `OLLAMA_BASE_URL` (optional)
-- `DEFAULT_PROVIDER` — `openai` or `ollama`
-- `DEFAULT_MODEL` — e.g. `gpt-4o-mini` or `qwen2.5`
+**Backend** (`caretrace/backend/.env`; every value has a working default):
+- `DATABASE_URL` — defaults to `sqlite:///./caretrace_demo.db`
+- `CORS_ORIGINS` — comma-separated allowed browser origins (default `http://localhost:3000`)
+- `DEFAULT_PROVIDER` / `DEFAULT_MODEL` — `openai`/`gpt-4o-mini` by default
+- `OPENAI_API_KEY` — only needed for live extraction (not for the seeded demo)
+- `OLLAMA_BASE_URL` / `OLLAMA_MODEL` — optional local provider
 
-Frontend:
+**Frontend** (`caretrace/frontend/.env.local`):
 - `NEXT_PUBLIC_API_BASE_URL` — e.g. `http://localhost:8000/api`
 
-## Local startup
-
-### Database
-```bash
-docker compose up -d
-```
+## Local startup (SQLite demo — the default path)
 
 ### Backend
 ```bash
-cd backend
-cp .env.example .env   # set DATABASE_URL and OPENAI_API_KEY
+cd caretrace/backend
+cp .env.example .env             # optional; defaults work as-is
 uv sync
+uv run python -m app.seed_demo   # create tables + load demo dataset
 uv run uvicorn app.main:app --reload --port 8000
 ```
+Tables auto-create on startup when using SQLite, so seeding is the only data step.
 
 ### Frontend
 ```bash
-cd frontend
-cp .env.example .env.local   # set NEXT_PUBLIC_API_BASE_URL
+cd caretrace/frontend
+cp .env.local.example .env.local
 npm install
 npm run dev
 ```
 
 ### Verify
-- Backend health: `http://localhost:8000/api/health` returns `{ "status": "ok" }`
-- Frontend: `http://localhost:3000`
+- Backend health: <http://localhost:8000/api/health> → `{"status":"ok","service":"healthCare-monitor-backend"}`
+- Frontend: <http://localhost:3000/dashboard> (header pill shows **API online**)
 
-## Optional local provider (Ollama)
+## Demo data
+```bash
+uv run python -m app.seed_demo        # reset to the known demo dataset
+uv run python -m app.seed_demo --keep # append without clearing
+```
+The dataset spans every routing path (auto-save, needs-review, reviewed incl. an
+edited approval, rejected, failed) across the last two weeks so the charts render
+a natural distribution. Counts are modest and honest — a demo dataset, not
+synthetic production traffic.
+
+## Using Postgres instead (optional, production-like)
+```bash
+# 1. Point at your Postgres instance
+export DATABASE_URL='postgresql+psycopg://healthcare:healthcare@localhost:5432/healthcare'
+# 2. Create the schema with Alembic (no auto-create on Postgres)
+uv run alembic upgrade head
+# 3. (optional) seed
+uv run python -m app.seed_demo
+```
+The models are dialect-portable (VARCHAR+CHECK enums, generic Uuid/JSON,
+Python-side defaults), so no code changes are required.
+
+## Optional local LLM provider (Ollama)
 ```bash
 ollama pull qwen2.5
 ollama serve
 ```
-Set `OLLAMA_BASE_URL` and select the `ollama` provider in the Process console.
+Set `OLLAMA_BASE_URL` and select the `ollama` provider when processing a
+transcript. Not required for the seeded demo or the dashboard.
 
-## Database migrations
-- Apply migrations before first run.
-- Keep a single, linear migration history for the MVP.
-- Migrations are additive; avoid destructive changes to trace tables.
+## Recovery
+- **Charts empty / odd** → re-run `uv run python -m app.seed_demo`.
+- **CORS errors in the browser** → add your origin to `CORS_ORIGINS`.
+- **API unreachable** → confirm the backend runs on `:8000` and
+  `NEXT_PUBLIC_API_BASE_URL` matches.
+- **Fresh start** → delete `caretrace/backend/caretrace_demo.db` and re-seed.
 
-## Demo checklist
-1. Start Postgres, backend, and frontend.
-2. Confirm `/api/health` is green.
-3. Load a sample from `examples/` in the Process console.
-4. Process with each provider to compare behavior.
-5. Show an auto-saved run and a `needs_review` run.
-6. Open a trace to demonstrate full auditability.
-7. Show the evaluation dashboard.
-
-## Production notes (out of MVP scope)
-The MVP targets local and demo environments only. Hardening such as TLS,
-managed Postgres, secrets management, and horizontal scaling is intentionally
-deferred and not part of this prototype.
+## Migrations
+- SQLite (demo): tables auto-create on startup; no migration step needed.
+- Postgres: managed by Alembic; keep a single linear history and prefer additive
+  changes to preserve trace tables.

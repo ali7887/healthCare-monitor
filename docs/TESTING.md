@@ -1,7 +1,7 @@
 # TESTING.md
 
 ## Testing goals
-Ensure CareTrace is reliable, deterministic, and explainable in core workflows.
+Ensure healthCare-monitor is reliable, deterministic, and explainable in core workflows.
 
 ## Test categories
 

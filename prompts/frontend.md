@@ -3,7 +3,7 @@
 Use this prompt when implementing frontend tasks.
 
 ## Instruction
-Implement only the requested frontend scope for CareTrace.
+Implement only the requested frontend scope for healthCare-monitor.
 
 ## Constraints
 - Next.js 15

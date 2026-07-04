@@ -62,7 +62,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_review_items_run_id'), 'review_items', ['run_id'], unique=False)
     op.create_table('validation_logs',
     sa.Column('run_id', sa.Uuid(), nullable=False),
-    sa.Column('issue_type', sa.Enum('schema', 'clinical', 'warning', 'critical', name='issuetype', native_enum=False, length=32), nullable=False),
+    sa.Column('issue_type', sa.Enum('schema', 'clinical', 'completeness', 'format', name='issuetype', native_enum=False, length=32), nullable=False),
     sa.Column('field', sa.String(length=255), nullable=True),
     sa.Column('message', sa.Text(), nullable=False),
     sa.Column('id', sa.Uuid(), nullable=False),

@@ -1,7 +1,7 @@
 [project]
-name = "caretrace-backend"
+name = "healthCare-monitor-backend"
 version = "0.1.0"
-description = "CareTrace backend — reliable AI-assisted clinical documentation (Phase 1: foundation)."
+description = "healthCare-monitor backend — reliable AI-assisted clinical documentation (Phase 1: foundation)."
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

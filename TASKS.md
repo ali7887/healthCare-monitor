@@ -1,125 +1,147 @@
-# TASKS.md
+TASKS.md — Project Roadmap & Task Board
 
-## Phase 0 — Documentation
-- [x] Write README.md
-- [x] Write CLAUDE.md
-- [x] Write ARCHITECTURE.md
-- [x] Write DECISIONS.md
-- [x] Write docs/PRD.md
-- [x] Write docs/AI_PIPELINE.md
-- [x] Write docs/API.md
-- [x] Write docs/DESIGN_SYSTEM.md
-- [x] Write docs/TESTING.md
-- [x] Write docs/DEPLOYMENT.md
-- [x] Write prompts/*.md
-- [x] Write examples/*.txt
+Legend
 
-## Phase 1 — Backend foundation
-- [x] Initialize FastAPI app
-- [x] Add config and settings
-- [x] Add DB session and base metadata
-- [x] Add `/api/health`
-- [x] Add backend `.env.example`
 
-## Phase 2 — Persistence models
-- [x] Create Run model
-- [x] Create ValidationLog model
-- [x] Create ReviewItem model
-- [x] Create EvaluationResult model
-- [x] Define enums and statuses
-- [x] Add migrations strategy
 
-## Phase 3 — AI orchestration
-- [x] Define provider interface
-- [x] Implement OpenAI provider
-- [x] Implement Ollama provider
-- [x] Add prompt versioning
-- [x] Capture raw response
-- [x] Normalize provider output shape
 
-## Phase 4 — Extraction schemas
-- [x] Define ClinicalNote schema
-- [x] Define Vitals schema
-- [x] Define Medication schema
-- [x] Define validation issue schema
-- [x] Define process request/response schemas
 
-## Phase 5 — Validation engine
-- [ ] Add schema validation handling
-- [ ] Add BP range rules
-- [ ] Add HR range rules
-- [ ] Add temperature rules
-- [ ] Add SpO2 rules
-- [ ] Add medication dose requirement
-- [ ] Add unit validation
-- [ ] Add extra-field detection
-- [ ] Add issue formatter
+Completed
 
-## Phase 6 — Retry logic
-- [ ] Retry once on validation failure
-- [ ] Build retry feedback prompt
-- [ ] Re-validate second output
-- [ ] Trace retry count and retry reasons
 
-## Phase 7 — Confidence and routing
-- [ ] Implement derived confidence function
-- [ ] Implement routing decision logic
-- [ ] Define auto-save threshold
-- [ ] Define review override rules
 
-## Phase 8 — Processing and trace APIs
-- [ ] Implement process endpoint
-- [ ] Implement runs list endpoint
-- [ ] Implement run detail endpoint
-- [ ] Implement trace detail endpoint
-- [ ] Implement review queue endpoints
-- [ ] Persist latency and cost estimates
+[/] In Progress
 
-## Phase 9 — Frontend shell
-- [ ] Initialize Next.js app
-- [ ] Add global layout and sidebar
-- [ ] Add theme tokens
-- [ ] Add shared UI primitives
-- [ ] Add API client
-- [ ] Add query client
 
-## Phase 10 — Process console
-- [ ] Build transcript input panel
-- [ ] Add example loader
-- [ ] Add provider selector
-- [ ] Add process action
-- [ ] Add pipeline stepper
-- [ ] Add structured output panel
-- [ ] Add validation results panel
-- [ ] Add confidence and decision card
 
-## Phase 11 — Runs and review
-- [ ] Build runs table
-- [ ] Build review queue table
-- [ ] Build review detail page
-- [ ] Add approve action
-- [ ] Add edit and approve action
-- [ ] Add reject action
+Pending
 
-## Phase 12 — Evaluation dashboard
-- [ ] Add metrics cards
-- [ ] Add model comparison table
-- [ ] Add simple evaluation summary
-- [ ] Add provider performance view
 
-## Phase 13 — Polish
-- [ ] Add loading states
-- [ ] Add empty states
-- [ ] Add error states
-- [ ] Improve responsiveness
-- [ ] Add screenshots to README
-- [ ] Add demo script
-- [ ] Add short case study
 
-## Done criteria
-- [ ] MVP can process sample transcripts end-to-end
-- [ ] Invalid outputs are flagged safely
-- [ ] Review queue works
-- [ ] Trace data is visible
-- [ ] Evaluation dashboard is populated
-- [ ] Docs and examples are complete
+🏁 Phase 10: Persistence & API Integration
+
+
+
+
+
+Resolve database circular imports by separating Base configuration to app/db/base.py.
+
+
+
+Implement the persistence.py service layer to handle database transactions and rollbacks.
+
+
+
+Expose POST /api/process pipeline routing endpoint.
+
+
+
+Expose review queue endpoints: GET /api/reviews and POST /api/reviews/{id}/action.
+
+
+
+Write comprehensive integration tests for persistence and API routes (72 tests passing).
+
+📊 Phase 11: Read-Heavy APIs
+
+
+
+
+
+Design dashboard aggregation schemas DashboardStatsResponse and pagination metadata wrappers.
+
+
+
+Write optimized read queries (get_runs and get_dashboard_stats) using SQLAlchemy native aggregations (func.count, func.avg).
+
+
+
+Implement query-param filters (Confidence score, status, routing decision, paging offset/limit).
+
+
+
+Verify API performance metrics and ensure zero regressions across all 72 backend tests.
+
+🚀 Phase 12: Frontend MVP (Next.js Dashboard)
+
+Target Directory: caretrace/frontend/
+
+12.1 — Base UI Components & Layout
+
+
+
+
+
+[x] Set up Next.js 15 project structure (App Router) in caretrace/frontend/ (build passes)
+
+
+
+[x] Configure Tailwind CSS, global typography, and design variables
+
+
+
+[x] Initialize Shadcn UI components library (button, card, badge, skeleton primitives + tokens)
+
+
+
+[x] Implement Global Layout Wrapper (app/layout.tsx) including TanStack Query providers
+
+
+
+[x] Implement Main Dashboard Layout Shell (app/dashboard/layout.tsx)
+
+
+
+[x] Implement Sidebar component (components/layout/sidebar.tsx) with active state tracking
+
+
+
+[x] Verify local layout routing without visual artifacts (next build: 7 routes compiled, types valid)
+
+12.2 — API Integration & Data Flow
+
+
+
+
+
+[x] Implement API client configuration and fetch wrapper (lib/api/client.ts)
+
+
+
+[x] Implement typescript definitions matching Phase 11 Pydantic models
+
+
+
+[x] Add TanStack Query hook for GET /api/dashboard/stats
+
+
+
+[x] Add TanStack Query hook for GET /api/runs (paginated query)
+
+
+
+[x] Bind dashboard cards directly to the stats endpoint (Total, Accepted, Routed, Rejected, Avg Confidence)
+
+
+
+[x] Bind dynamic run list table to backend runs query with loading, empty, and error states
+
+12.3 — Interactive Features & Trace View
+
+
+
+
+
+Integrate TanStack Table for sorting, filtering, and paging controls
+
+
+
+Bind table filter states directly to URL query parameters
+
+
+
+Add interactive Recharts charts visualizing average confidence levels
+
+
+
+Implement Trace Detail view to display raw input payloads, parsed outputs, and structured confidence breakdowns

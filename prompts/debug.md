@@ -1,6 +1,6 @@
 # debug.md
 
-Use this prompt when debugging CareTrace.
+Use this prompt when debugging healthCare-monitor.
 
 ## Debug method
 1. Identify exact failing scope

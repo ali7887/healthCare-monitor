@@ -1,1 +1,1 @@
-"""CareTrace backend application package."""
+"""healthCare-monitor backend application package."""

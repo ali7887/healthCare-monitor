@@ -10,6 +10,7 @@ be null on failure).
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,6 +18,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.clinical_note import ClinicalNote
 from app.schemas.common import ProviderLiteral, RunStatusLiteral
 from app.schemas.validation import ValidationIssue
+
+RoutingDecisionLiteral = Literal["auto_save", "human_review", "reject"]
 
 
 class ProcessRequest(BaseModel):
@@ -61,3 +64,8 @@ class ProcessResponse(BaseModel):
     latency_ms: int | None = None
     estimated_cost_usd: float | None = None
     created_at: datetime
+
+    # Routing + confidence trace (Phase 10)
+    routing_decision: RoutingDecisionLiteral | None = None
+    routing_reason: str | None = None
+    confidence_breakdown: dict[str, Any] | None = None

@@ -48,7 +48,7 @@ wheels = [
 ]
 
 [[package]]
-name = "caretrace-backend"
+name = "healthCare-monitor-backend"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

@@ -29,12 +29,41 @@ class RunStatus(str, enum.Enum):
 
 
 class IssueType(str, enum.Enum):
-    """Category/severity of a validation issue."""
+    """Category of a validation issue (unified taxonomy).
+
+    Aligns with app.schemas.validation.IssueTypeLiteral. Describes *what kind*
+    of issue occurred, not how severe it is (see ``Severity``).
+    """
 
     schema = "schema"
     clinical = "clinical"
+    completeness = "completeness"
+    format = "format"
+
+
+class Severity(str, enum.Enum):
+    """Severity of a validation issue (unified taxonomy).
+
+    Aligns with app.schemas.validation.SeverityLiteral. Persisting severity on
+    ValidationLog (a dedicated column) is deferred to a later persistence phase;
+    this enum defines the shared vocabulary now.
+    """
+
     warning = "warning"
     critical = "critical"
+
+
+class RoutingDecision(str, enum.Enum):
+    """Persisted routing outcome for a run.
+
+    Mirrors the values of the service-layer ``app.services.routing.RoutingDecision``;
+    persistence bridges the two by value to keep the compute layer free of ORM
+    imports (avoids the models/db bootstrap cycle).
+    """
+
+    auto_save = "auto_save"
+    human_review = "human_review"
+    reject = "reject"
 
 
 class ReviewStatus(str, enum.Enum):

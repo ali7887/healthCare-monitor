@@ -1,7 +1,7 @@
 # PRD.md
 
 ## Product name
-CareTrace
+healthCare-monitor
 
 ## Subtitle
 Reliable AI-assisted clinical documentation with validation, traceability, and human review.

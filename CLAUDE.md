@@ -7,9 +7,9 @@
 # CLAUDE.md
 
 ## Project identity
-Project name: CareTrace
+Project name: healthCare-monitor
 
-CareTrace is a healthcare AI reliability prototype focused on structured clinical documentation, deterministic validation, traceability, and human review.
+healthCare-monitor is a healthcare AI reliability prototype focused on structured clinical documentation, deterministic validation, traceability, and human review.
 
 ## Primary goal
 Build a lean but production-like MVP that demonstrates reliable handling of AI-generated clinical documentation outputs.
@@ -154,4 +154,4 @@ When uncertain, align implementation to:
 2. Which files changed?
 3. What assumptions did you make?
 4. What remains out of scope?
-5. How does this align with CareTrace reliability goals?
+5. How does this align with healthCare-monitor reliability goals?

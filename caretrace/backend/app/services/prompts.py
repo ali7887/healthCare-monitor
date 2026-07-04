@@ -1,6 +1,6 @@
 """Versioned prompt registry.
 
-Prompts are stored as plain files under ``caretrace/backend/prompts`` and loaded
+Prompts are stored as plain files under ``healthCare-monitor/backend/prompts`` and loaded
 by an explicit version identifier. Keeping prompts on disk (rather than inline
 strings) makes them inspectable, auditable, and easy to version over time.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-# caretrace/backend/prompts  (this file is app/services/prompts.py)
+# healthCare-monitor/backend/prompts  (this file is app/services/prompts.py)
 PROMPT_DIR = Path(__file__).resolve().parents[2] / "prompts"
 
 DEFAULT_PROMPT_VERSION = "clinical-extraction-v1"

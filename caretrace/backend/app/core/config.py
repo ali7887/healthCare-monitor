@@ -24,15 +24,21 @@ class Settings(BaseSettings):
     )
 
     # Application metadata
-    app_name: str = "CareTrace Backend"
+    app_name: str = "healthCare-monitor Backend"
     app_version: str = "0.1.0"
-    service_name: str = "caretrace-backend"
+    service_name: str = "healthCare-monitor-backend"
     api_prefix: str = "/api"
 
-    # Database (Postgres-ready; not connected until a session is opened)
-    database_url: str = (
-        "postgresql+psycopg://caretrace:caretrace@localhost:5432/caretrace"
-    )
+    # Database. Defaults to a local SQLite file so the app runs from a clean
+    # checkout with zero external infrastructure (ideal for local dev and demos).
+    # Point DATABASE_URL at Postgres for a production-like setup — the models are
+    # dialect-portable (VARCHAR+CHECK enums, generic Uuid/JSON, Python-side
+    # defaults) and the same code runs on either engine.
+    database_url: str = "sqlite:///./caretrace_demo.db"
+
+    # Browser origins allowed to call the API (comma-separated). The Next.js dev
+    # server runs on :3000 by default; add deployed origins here as needed.
+    cors_origins: str = "http://localhost:3000"
 
     # Default provider selection (used by the orchestration factory)
     default_provider: str = "openai"
@@ -45,6 +51,16 @@ class Settings(BaseSettings):
     # Ollama provider (local)
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """CORS origins as a clean list (drops blanks/whitespace)."""
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def is_sqlite(self) -> bool:
+        """True when the configured database is SQLite (local/demo default)."""
+        return self.database_url.startswith("sqlite")
 
 
 @lru_cache

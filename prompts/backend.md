@@ -3,7 +3,7 @@
 Use this prompt when implementing backend tasks.
 
 ## Instruction
-Implement only the requested backend scope for CareTrace.
+Implement only the requested backend scope for healthCare-monitor.
 
 ## Constraints
 - FastAPI

@@ -8,7 +8,7 @@ from sqlalchemy import JSON, Float, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.models.enums import Provider, RunStatus, enum_column
+from app.models.enums import Provider, RoutingDecision, RunStatus, enum_column
 from app.models.mixins import TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
@@ -35,6 +35,15 @@ class Run(UUIDMixin, TimestampMixin, Base):
     raw_model_response: Mapped[str | None] = mapped_column(Text, nullable=True)
     parsed_output: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     final_output: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+    # Routing + confidence trace (Phase 10)
+    routing_decision: Mapped[RoutingDecision | None] = mapped_column(
+        enum_column(RoutingDecision), nullable=True
+    )
+    routing_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence_breakdown: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True
+    )
 
     validation_logs: Mapped[list["ValidationLog"]] = relationship(
         back_populates="run",

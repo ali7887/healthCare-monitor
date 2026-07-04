@@ -9,7 +9,7 @@ from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.models.enums import IssueType, enum_column
+from app.models.enums import IssueType, Severity, enum_column
 from app.models.mixins import CreatedAtMixin, UUIDMixin
 
 if TYPE_CHECKING:
@@ -27,8 +27,13 @@ class ValidationLog(UUIDMixin, CreatedAtMixin, Base):
     issue_type: Mapped[IssueType] = mapped_column(
         enum_column(IssueType), nullable=False
     )
+    # severity and rule_id complete the unified validation taxonomy (Phase 10).
+    severity: Mapped[Severity | None] = mapped_column(
+        enum_column(Severity), nullable=True
+    )
     field: Mapped[str | None] = mapped_column(String(255), nullable=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    rule_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     run: Mapped["Run"] = relationship(back_populates="validation_logs")
 

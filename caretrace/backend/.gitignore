@@ -1,0 +1,16 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite demo database (regenerate with `uv run python -m app.seed_demo`)
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/

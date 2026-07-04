@@ -1,7 +1,7 @@
 # ARCHITECTURE.md
 
 ## System goal
-CareTrace transforms unstructured nursing or caregiver transcripts into structured clinical documentation while emphasizing validation, traceability, and human review.
+healthCare-monitor transforms unstructured nursing or caregiver transcripts into structured clinical documentation while emphasizing validation, traceability, and human review.
 
 ## Architectural priorities
 1. deterministic validation
