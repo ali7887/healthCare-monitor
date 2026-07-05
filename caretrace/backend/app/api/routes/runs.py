@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core import telemetry
 from app.models import Run
 from app.models.enums import RoutingDecision
 from app.models.validation_log import ValidationLog
@@ -108,6 +109,7 @@ def get_run_detail(
 ) -> RunDetailResponse:
     """Return the full trace for a single run (404 if not found)."""
     run = get_run(db, run_id)
+    telemetry.log_run_detail(run_id, found=run is not None)
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
     return _to_detail(run)
@@ -125,12 +127,19 @@ async def analyze_run(
     confidence. Advisory only — it never changes the run. 404 if the run does
     not exist; 422 if ``edited_output`` is not a JSON object.
     """
+    telemetry.log_assistant_request(
+        run_id=run_id, edited_supplied=bool(payload.edited_output)
+    )
     try:
         analysis = await AssistantService().analyze_review(
             db, run_id, payload.edited_output
         )
     except RunNotFoundError as exc:
+        telemetry.log_assistant_failure(run_id=run_id, reason="run_not_found")
         raise HTTPException(status_code=404, detail="Run not found") from exc
+    telemetry.log_assistant_success(
+        run_id=run_id, risk_count=len(analysis.clinical_risks)
+    )
     return AssistantAnalysisResponse(
         clinical_risks=analysis.clinical_risks,
         suggestion=analysis.suggestion,

@@ -1,7 +1,7 @@
 # CareTrace (healthCare-monitor) — Project Status & Context Sync
 
 Last updated: 2026-07-05  
-Current phase: **Phase 21 complete**  
+Current phase: **Phase 22 complete**  
 Overall status: **Portfolio-grade MVP complete, fully validated locally, CI-configured, ready for next product/depth phase**
 
 ---
@@ -161,3 +161,22 @@ An advisory "AI reviewer assistant" in the trace viewer that gives the operator 
 - **Human-in-the-loop:** the assistant is strictly advisory — it never approves, rejects, or persists anything.
 
 Validation: **98 backend** + **30 frontend** tests green; `tsc` clean; production build clean (no new deps); E2E happy path now runs the assistant and asserts a surfaced risk. 
+
+### Phase 22 — Observability & Production Telemetry
+**Status: complete and validated**
+
+A thin, local-first observability layer — no external vendors, collectors, Docker, or metrics stack.
+
+- **Backend**
+  - `app/core/logging.py` — stdlib-only JSON log formatter + a request-scoped `request_id` `contextvar`, so every log emitted during a request is auto-tagged. `configure_logging()` (idempotent) + `log_event()` helper.
+  - `app/core/middleware.py` — `RequestContextMiddleware` (**pure ASGI**, deliberately not `BaseHTTPMiddleware` — the latter added ~2–3s latency to sync endpoints under real uvicorn): generates or preserves `X-Request-ID`, times each request, echoes the id on the response, and emits one structured `http_request` event (method/path/status/`duration_ms`). CORS `expose_headers` lets the browser read the id.
+  - `app/core/telemetry.py` — explicit domain helpers (no framework) for the critical flows: run-detail fetch, review approve/reject/conflict/not-found, assistant request/success/failure (`outcome` = `stable`/`risk_alert`), dashboard stats/timeseries, seed completion. **Safe metadata only** — never raw clinical text.
+  - Instrumented `runs.py`, `reviews.py`, `dashboard.py`, `seed_demo.py`; wired logging + middleware into `main.py`.
+- **Frontend**
+  - `lib/telemetry.ts` — in-memory, capped, subscribable telemetry store (+ `startSpan`), console-mirrored in dev only. No external SDK.
+  - `lib/api/client.ts` — records an `api_request` event per call with latency and the `X-Request-ID` read back from the response.
+  - Telemetry on the assistant + review mutations and on the error boundary (`widget_error`).
+  - `components/dev/observability-panel.tsx` — dev-only (opt-in in prod via `NEXT_PUBLIC_OBSERVABILITY=1`) panel showing recent request ids, API latencies, last assistant result, and the event stream; mounted in the dashboard layout.
+- **Privacy:** logs and telemetry carry ids/statuses/counts only — enforced at the helper boundary.
+
+Validation: **107 backend** + **41 frontend** tests green; `tsc` clean; `ci:frontend` (typecheck + unit + build) clean, no new deps; E2E suite still green (the panel is dev-only, so production E2E is unaffected). No DB migration/reseed required.

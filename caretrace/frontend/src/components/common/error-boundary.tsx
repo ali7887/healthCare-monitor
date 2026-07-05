@@ -5,6 +5,7 @@ import { Component, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { recordEvent } from "@/lib/telemetry";
 
 interface Props {
   children: ReactNode;
@@ -28,6 +29,15 @@ export class ErrorBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(error: Error): State {
     return { error };
+  }
+
+  componentDidCatch(error: Error): void {
+    // Surface widget-level failures to local telemetry so the dev observability
+    // panel shows which region broke (safe metadata only — no payloads).
+    recordEvent("widget_error", {
+      status: "failure",
+      meta: { section: this.props.section ?? "unknown", error: error.message },
+    });
   }
 
   reset = () => this.setState({ error: null });

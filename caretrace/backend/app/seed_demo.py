@@ -36,6 +36,8 @@ from app.models.enums import (
     RunStatus,
     Severity,
 )
+from app.core.logging import configure_logging
+from app.core.telemetry import log_seed_complete
 from app.models.review_item import ReviewItem
 from app.services.reasoning import build_reasoning_summary
 
@@ -354,9 +356,11 @@ def seed(*, reset: bool = True) -> dict[str, int]:
 
 
 def main() -> None:
+    configure_logging()
     reset = "--keep" not in sys.argv
     counts = seed(reset=reset)
     total = sum(counts.values())
+    log_seed_complete(total=total, reset=reset)
     print(f"Seeded {total} demo runs ({'reset' if reset else 'appended'}):")
     for status, count in sorted(counts.items()):
         print(f"  {status:<14} {count}")

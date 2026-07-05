@@ -15,7 +15,7 @@ Naive "call the LLM and store the JSON" pipelines fail exactly where healthcare 
 - **Deterministic validation over model self-trust.** The model is never asked how confident it is. Confidence is *derived locally* from concrete validation outcomes.
 - **Traceability by default.** Every run persists its raw response, parsed output, validation issues, routing decision, and the confidence breakdown that produced it.
 - **Human-in-the-loop as a first-class path**, including *edited approvals* where a reviewer's correction is stored without ever overwriting the original model output.
-- **Tested and hardened**: 86 backend tests + 25 frontend tests, per-widget error boundaries, an immutable-decision conflict guard, and a lazy-loaded chart layer.
+- **Tested and hardened**: 107 backend tests + 41 frontend tests, per-widget error boundaries, an immutable-decision conflict guard, a lazy-loaded chart layer, and a thin local-first observability layer (request correlation ids, structured logs, telemetry).
 
 See [`docs/ENGINEERING_DECISIONS.md`](docs/ENGINEERING_DECISIONS.md) for the tradeoffs behind each of these.
 
@@ -64,6 +64,7 @@ Statuses: `auto_saved` · `needs_review` · `reviewed` · `rejected` · `failed`
 - **Stable typed contracts.** Backend Pydantic read-models map 1:1 to frontend TypeScript types (e.g. `RunDetail`, `DashboardStats`, `DashboardTimeseries`).
 - **Portable persistence.** Enums are stored as `VARCHAR + CHECK` (not native Postgres enums), UUID/JSON use generic types, and timestamps use Python-side defaults — so the exact same models run on SQLite and Postgres.
 - **Observable dashboard.** KPI strip, routing-distribution donut, and a real per-day throughput trend, all sharing one `ROUTING_SERIES` config so the donut and trend can never drift out of alignment.
+- **Local-first observability.** Every API request gets a correlation id (`X-Request-ID`, generated or preserved), timed, and logged as one structured JSON line; the critical review/assistant/dashboard flows emit safe, structured telemetry (ids/statuses/counts — never clinical text). The frontend mirrors this into an in-memory telemetry store and a dev-only observability panel that ties a UI action back to the exact backend log. No external telemetry vendor, collector, or agent. See [`docs/ENGINEERING_DECISIONS.md`](docs/ENGINEERING_DECISIONS.md#11-observability-is-thin-local-first-and-privacy-safe).
 
 More detail: [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`docs/AI_PIPELINE.md`](docs/AI_PIPELINE.md) · [`docs/API.md`](docs/API.md).
 
@@ -107,10 +108,10 @@ Open <http://localhost:3000/dashboard>.
 ## Test
 
 ```bash
-# Backend — 86 tests
+# Backend — 107 tests
 cd caretrace/backend && uv run pytest
 
-# Frontend — 25 tests, types, and production build
+# Frontend — 41 tests, types, and production build
 cd caretrace/frontend
 npm run test          # Vitest + React Testing Library
 npx tsc --noEmit      # type check

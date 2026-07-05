@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core import telemetry
 from app.models import Run
 from app.models.review_item import ReviewItem
 from app.models.validation_log import ValidationLog
@@ -93,9 +94,18 @@ def review_action(
             edited_output=edited,
         )
     except ReviewConflictError as exc:
+        telemetry.log_review_conflict(review_id=review_id)
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if review is None:
+        telemetry.log_review_not_found(review_id=review_id)
         raise HTTPException(status_code=404, detail="Review item not found")
+    telemetry.log_review_decision(
+        review_id=review.id,
+        run_id=review.run_id,
+        action=payload.action,
+        run_status=review.run.status.value,
+        edited=edited is not None,
+    )
     return ReviewActionResponse(
         id=review.id,
         run_id=review.run_id,

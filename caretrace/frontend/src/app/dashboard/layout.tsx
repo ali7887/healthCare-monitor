@@ -1,3 +1,4 @@
+import { ObservabilityPanel } from "@/components/dev/observability-panel";
 import { ApiStatus } from "@/components/layout/api-status";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -26,6 +27,7 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+      <ObservabilityPanel />
     </div>
   );
 }

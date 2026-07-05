@@ -62,7 +62,7 @@ A concise record of the non-obvious choices in healthCare-monitor and *why* they
 
 ## 8. Testing: pytest + Vitest/RTL, covering behavior and contracts
 
-**Decision.** 86 backend tests (schema/clinical validation, retry, confidence, routing, persistence, endpoints, and Phase-16 edge cases) and 25 frontend tests (Vitest + React Testing Library) covering review-action validation, chart state machines, KPI cache-invalidation-after-mutation, and the error boundary.
+**Decision.** 107 backend tests (schema/clinical validation, retry, confidence, routing, persistence, endpoints, the AI-assistant heuristics, observability, and edge cases) and 41 frontend tests (Vitest + React Testing Library) covering review-action validation, chart state machines, KPI cache-invalidation-after-mutation, the error boundary, the AI-assistant panel, and the telemetry/observability layer.
 
 **Why.** The highest-value guarantees are behavioral: does an invalid edit get blocked, does the dashboard update after a decision, do the donut and trend agree. Charts are tested with `ResponsiveContainer` mocked to a fixed size so they render deterministically under jsdom. The one intentional-rejection test drives its error path through a stubbed hook rather than a rejected query, to avoid the runner's unhandled-rejection race.
 
@@ -83,3 +83,15 @@ A concise record of the non-obvious choices in healthCare-monitor and *why* they
 **Why.** Recharts is the heaviest client dependency and is only needed on the dashboard. Lazy-loading it cut the dashboard's First Load JS from **~238 kB to ~130 kB** without changing behavior — the chart container's existing loading state covers the brief chunk fetch.
 
 **Tradeoff.** A momentary skeleton on first dashboard paint. Acceptable, and it reuses the loading state the chart card already had.
+
+## 11. Observability is thin, local-first, and privacy-safe
+
+**Decision.** Observability is a deliberately small, dependency-free layer rather than an external stack. Backend: a JSON log formatter over stdlib `logging` (`app/core/logging.py`), an `X-Request-ID` correlation + timing middleware (`app/core/middleware.py`), and explicit domain telemetry helpers for the critical flows (`app/core/telemetry.py`). Frontend: an in-memory telemetry store (`lib/telemetry.ts`), correlation-id capture in the fetch client, and a dev-only observability panel. No OpenTelemetry collector, Prometheus/Grafana, Docker, or SaaS vendor.
+
+**Why.** The value we wanted was **diagnosability and correlation** — being able to take a latency or failure seen in the UI and find the exact backend log that produced it — not a metrics platform. A correlation id that is generated-or-preserved per request, echoed on the response (`expose_headers`), bound to a `contextvar` so every downstream log carries it automatically, and read back by the frontend delivers that end-to-end trace with essentially zero infrastructure. Structured JSON logs keep the output grep-able and machine-readable without a shipper. Keeping it thin also keeps local startup a single command and CI deterministic.
+
+**Pure ASGI middleware, not `BaseHTTPMiddleware`.** The correlation/timing middleware is implemented as a bare ASGI class (`__call__(scope, receive, send)`), not Starlette's `BaseHTTPMiddleware`. During Phase 22 the `BaseHTTPMiddleware` version passed all unit tests (via `TestClient`) but added **~2–3s of latency to synchronous (`def`) endpoints under real uvicorn** — enough to time out the Playwright review-flow E2E — because `BaseHTTPMiddleware` runs the downstream app in a separate anyio task and pumps the response through a memory stream, which contends with the threadpool that serves sync endpoints. The pure-ASGI wrapper removed the regression (review action back to ~0.4s) and keeps the `contextvar` in the same task as the endpoint. Lesson: middleware performance must be checked against a real server, not just `TestClient`.
+
+**Privacy.** Telemetry and logs carry **safe metadata only** — ids, statuses, counts, outcome categories (`stable` / `risk_alert`) — and never raw transcripts, clinical notes, or full payloads. This is a hard rule for a healthcare-adjacent system, enforced at the helper boundary (helpers take scalars, not note objects).
+
+**Tradeoff.** No historical aggregation, dashboards, or alerting — logs are point-in-time and the frontend telemetry buffer is in-memory (capped, session-scoped). Acceptable for an MVP/demo; the helper-function seams are the obvious place to forward to a real backend later without touching call sites. The dev observability panel is hidden in production by default and can be opted in with `NEXT_PUBLIC_OBSERVABILITY=1`.
