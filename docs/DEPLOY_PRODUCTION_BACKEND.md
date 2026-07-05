@@ -1,13 +1,107 @@
-# Deploy the backend (Render / Railway)
+# Deploy the backend (Vercel serverless · Render / Railway)
 
-How to put the healthCare-monitor backend online on a managed host. It targets
-**Render** (Blueprint or manual Web Service) with notes for **Railway**; both
-run the same start command. No Docker, no Kubernetes — just a Python web service.
+How to put the healthCare-monitor backend online. The **active deployment target
+is Vercel serverless** (§ below); **Render/Railway** (long-running server) remain
+supported as an alternative. No Docker, no Kubernetes.
 
 > **Scope note.** This guide is written so you can deploy in a few minutes. The
-> repository ships everything needed (start script, config, health checks); the
-> only steps that require *your* account are creating the service and setting
-> environment variables in the host's dashboard.
+> repository ships everything needed (entrypoint, `vercel.json`, `requirements.txt`,
+> config, health checks); the only steps that require *your* account are creating
+> the project and setting environment variables in the host's dashboard.
+
+---
+
+## Vercel serverless (active target)
+
+The backend runs as a single **Python Serverless Function** wrapping the FastAPI
+ASGI app — Vercel invokes the app directly, so no uvicorn/gunicorn process runs.
+
+### Files (shipped in `caretrace/backend/`)
+
+| File | Role |
+|---|---|
+| [`api/index.py`](../caretrace/backend/api/index.py) | Serverless entrypoint; exposes the module-level ASGI `app` (`from app.main import app`). |
+| [`vercel.json`](../caretrace/backend/vercel.json) | Rewrites `/(.*)` → `/api/index`, so every path reaches the function. The app keeps its own `/api` prefix, so `/api/health` resolves unchanged. |
+| [`requirements.txt`](../caretrace/backend/requirements.txt) | Runtime deps for `@vercel/python` (no uvicorn/gunicorn/alembic — not needed at runtime). |
+| [`.vercelignore`](../caretrace/backend/.vercelignore) | Keeps local SQLite files, `.venv`, and tests out of the bundle. |
+
+### Create the project
+
+1. **Vercel → Add New → Project**, import this repository (a **separate** Vercel
+   project from the frontend).
+2. **Root Directory:** `caretrace/backend` — Vercel then finds `vercel.json`,
+   `requirements.txt`, and the `api/` function automatically.
+3. **Framework Preset:** Other. No build command is needed; `@vercel/python`
+   installs `requirements.txt` and builds the function.
+4. Set the environment variables (table below), then deploy. The active domain in
+   this project is `fastapi-blush-two.vercel.app`.
+
+### Environment variables (Vercel backend project)
+
+| Variable | Value | Notes |
+|---|---|---|
+| `CARETRACE_ENV` | `production` | Production logging profile; no boot seeding. |
+| `DATABASE_URL` | `postgresql+psycopg://USER:PASS@HOST/DB` | **Required** — see the database note; use a **pooled** endpoint. |
+| `CORS_ORIGINS` | `https://<your-frontend>.vercel.app` | Your frontend production domain (comma-separated for several). |
+| `CORS_ORIGIN_REGEX` | `^https://<frontend-project>-[a-z0-9-]+\.vercel\.app$` | *Optional* — allows that project's preview deployments. |
+| `CARETRACE_LOG_LEVEL` | `INFO` | Structured log level. |
+| `OPENAI_API_KEY` | *(only for live extraction)* | Not needed for the seeded demo/dashboard. |
+
+> Do **not** set `CARETRACE_DEMO_SEED` on Vercel (see seeding note). `PORT`,
+> `WEB_CONCURRENCY`, and `start_production.sh` are **not** used on Vercel — those
+> belong to the Render/Railway path.
+
+### Database & migrations on serverless — important
+
+Vercel's filesystem is **read-only and ephemeral** (only `/tmp`, per-invocation,
+not shared across instances). Therefore:
+
+- **SQLite is not viable** on Vercel — writes (review approve/reject) would not
+  persist or be shared. **Use an external Postgres** (Neon, Supabase, or Vercel
+  Postgres). Because `DATABASE_URL` is non-SQLite, the app skips `create_all` and
+  treats the schema as Alembic-managed.
+- **Use a pooled connection string.** Serverless spins up many short-lived
+  instances; a direct Postgres connection exhausts server slots. Point
+  `DATABASE_URL` at the provider's pooler (e.g. Neon's `-pooler` host, Supabase's
+  transaction pooler on port `6543`).
+- **Do not run migrations on cold start.** Cold starts are frequent, concurrent,
+  and time-limited — running `alembic upgrade head` there risks lock contention,
+  partial migrations, and timeouts. The app already never migrates on boot. Run
+  migrations **externally, once per schema change**, from your machine or CI:
+  ```bash
+  cd caretrace/backend
+  DATABASE_URL="postgresql+psycopg://…prod…" uv run alembic upgrade head
+  ```
+- **Seed once, externally.** Leave `CARETRACE_DEMO_SEED` unset on Vercel (a
+  boot-time seed could race between two cold starts). Seed the demo dataset once
+  against the production Postgres from your machine:
+  ```bash
+  cd caretrace/backend
+  DATABASE_URL="postgresql+psycopg://…prod…" uv run python -m app.seed_demo
+  ```
+  (The lifespan seed remains guarded — only-if-empty and wrapped so a race can
+  never crash a boot — but running it once externally is the deterministic path.)
+
+### Verify
+
+```bash
+curl https://fastapi-blush-two.vercel.app/api/health
+# {"status":"ok","service":"healthCare-monitor-backend"}
+curl https://fastapi-blush-two.vercel.app/api/ready
+# {"status":"ready", ... ,"checks":{"database":true,"schema":true}}
+```
+
+Then set the frontend's `NEXT_PUBLIC_API_BASE_URL` to
+`https://fastapi-blush-two.vercel.app/api` and redeploy the frontend (see
+[`DEPLOY_PRODUCTION_FRONTEND.md`](DEPLOY_PRODUCTION_FRONTEND.md)).
+
+---
+
+## Alternative: Render / Railway (long-running server)
+
+Use this if you prefer a persistent process (`start_production.sh` + uvicorn)
+instead of serverless. It targets **Render** (Blueprint or manual Web Service)
+with notes for **Railway**; both run the same start command.
 
 ---
 

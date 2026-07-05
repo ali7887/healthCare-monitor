@@ -1,8 +1,22 @@
 # CareTrace (healthCare-monitor) — Project Status & Context Sync
 
 Last updated: 2026-07-05  
-Current phase: **Phase 23 complete**  
-Overall status: **Deployment-ready, portfolio-publishable product — production config, health/readiness probes, deploy runbooks, and CI in place; fully validated locally**
+Current phase: **Phase 23 complete; live backend deployment in progress (Vercel serverless)**  
+Overall status: **Frontend deployed on Vercel; backend migrated to Vercel Python Serverless — entrypoint/`vercel.json`/`requirements.txt` in place; pending live env config (Postgres `DATABASE_URL`, CORS) and frontend API-URL wiring**
+
+> **Backend deployment target changed:** Render → **Vercel serverless** (Python
+> Function wrapping the FastAPI ASGI app). Active backend domain:
+> `fastapi-blush-two.vercel.app`. Serverless files live in `caretrace/backend/`
+> (`api/index.py`, `vercel.json`, `requirements.txt`, `.vercelignore`). Render/
+> Railway remain a documented alternative. Because Vercel's filesystem is
+> read-only/ephemeral, the serverless backend **requires an external (pooled)
+> Postgres**; migrations and demo seeding are run **externally, once**, not on
+> cold start. See `docs/DEPLOY_PRODUCTION_BACKEND.md → Vercel serverless`.
+>
+> Remaining: set `DATABASE_URL` (pooled Postgres) + `CORS_ORIGINS` on the Vercel
+> backend project, run `alembic upgrade head` + `seed_demo` against prod DB once,
+> then set frontend `NEXT_PUBLIC_API_BASE_URL=https://fastapi-blush-two.vercel.app/api`
+> and redeploy. Verify `/api/health` + `/api/ready` and the end-to-end demo path.
 
 ---
 
@@ -19,8 +33,15 @@ The project now includes:
 - CI quality gates for frontend, backend, and E2E
 - an interpretable reasoning panel in the trace viewer
 - persisted reviewer-note audit visibility for decided runs
+- deployment-oriented production configuration, health/readiness probes, and runbooks
 
-All key local validation paths are currently green.
+Current deployment state:
+- **Frontend:** successfully deployed on **Vercel**
+- **Backend:** not yet live; deployment target is **Render free tier**
+- **Integration status:** frontend deployment path is validated, but production frontend↔backend integration is blocked until the backend is deployed and its production API URL is available
+
+All key local validation paths are currently green.  
+The remaining work is focused on **live backend deployment, environment configuration, CORS validation, and final production integration**.
 
 ---
 
@@ -182,7 +203,7 @@ A thin, local-first observability layer — no external vendors, collectors, Doc
 Validation: **107 backend** + **41 frontend** tests green; `tsc` clean; `ci:frontend` (typecheck + unit + build) clean, no new deps; E2E suite still green (the panel is dev-only, so production E2E is unaffected). No DB migration/reseed required.
 
 ### Phase 23 — Production Deployment & Public Demo (readiness)
-**Status: complete and validated (in-repo readiness)**
+**Status: complete and validated in-repo; live backend deployment still pending**
 
 Turned the demo into a deployment-ready, portfolio-publishable product without heavy infra (no Docker/K8s; Postgres optional; SQLite still the local default).
 
@@ -198,6 +219,68 @@ Turned the demo into a deployment-ready, portfolio-publishable product without h
 - **CI** — manual-only `deploy` job in `ci.yml` (`workflow_dispatch` with a `deploy_target` input; gated on `frontend`/`backend`/`e2e`; Vercel + Render via repository secrets). Never runs on push/PR.
 - **Docs** — `docs/DEPLOY_PRODUCTION_FRONTEND.md`, `docs/DEPLOY_PRODUCTION_BACKEND.md`, `docs/PRODUCT_OVERVIEW.md` (executive summary + screenshots + ASCII architecture/flow diagrams + CI table); README polished (Features list, live-demo/API placeholders, Deploy section, doc links); ENGINEERING_DECISIONS #12.
 
-**Out of scope / requires your accounts:** the actual live Vercel/Render deploy, the public demo URL, deploy secrets, and screenshots taken against live infra. Everything is code/tests/docs/CI-ready so deployment is a few dashboard steps.
+Validated in repository / local environment:
+- **117 backend** (+10) + **41 frontend** tests green
+- `tsc` clean
+- `ci:frontend` (typecheck + unit + build) clean
+- E2E suite green
+- production screenshot set regenerated
 
-Validation: **117 backend** (+10) + **41 frontend** tests green; `tsc` clean; `ci:frontend` (typecheck + unit + build) clean, no new deps; E2E suite green; production screenshot set regenerated.
+Live deployment status:
+- **Frontend on Vercel:** done
+- **Backend on Render:** pending
+- **Production API URL:** not yet assigned
+- **Final Vercel env (`NEXT_PUBLIC_API_BASE_URL`) update:** pending backend URL
+- **CORS validation against live frontend domain:** pending backend deployment
+
+---
+
+## Current Deployment State
+
+### Done
+- Frontend deployment path fixed and successfully deployed on **Vercel**
+- Root Directory issue resolved for the Next.js app
+- Frontend production build confirmed
+- Project configuration for Vercel is now aligned with the monorepo structure
+
+### Remaining
+- Inspect backend structure and confirm exact app import path
+- Confirm exact Render root directory, build command, and start command
+- Deploy backend to Render free tier
+- Set backend production environment variables
+- Configure/verify CORS for the Vercel frontend domain
+- Obtain the live Render backend URL
+- Update Vercel:
+  - `NEXT_PUBLIC_API_BASE_URL=https://<render-backend-domain>/api`
+- Redeploy frontend after setting the final backend API URL
+- Validate end-to-end production integration:
+  - dashboard loads
+  - runs list loads
+  - run detail works
+  - review actions succeed
+  - assistant analysis succeeds
+  - health/readiness endpoints respond correctly
+
+---
+
+## Immediate Next Objective
+
+Make the backend fully live on **Render**, then wire the Vercel frontend to the live backend URL and validate the end-to-end production demo path.
+
+---
+
+## Notes for the next deployment step
+
+The next assistant/code agent should focus on backend deployment readiness and live deployment only.
+
+Important context:
+- Frontend deployment on Vercel is already complete.
+- Do **not** revisit frontend architecture or generic Vercel setup unless required for the final API URL integration.
+- Focus on:
+  - backend entrypoint detection
+  - Render deployment configuration
+  - backend env vars
+  - CORS
+  - health checks
+  - migration/startup behavior
+  - final Vercel API base URL value

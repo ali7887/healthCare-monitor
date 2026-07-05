@@ -4,6 +4,7 @@ Run locally with:
     uv run uvicorn app.main:app --reload --port 8000
 """
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -73,8 +74,14 @@ def _seed_demo_if_empty() -> None:
 
     from app.seed_demo import seed
 
-    counts = seed(reset=False)
-    log_event(logger, "demo_seed_on_boot", total=sum(counts.values()))
+    # Harden for serverless cold starts: two instances could race to seed an
+    # empty database. Seeding stays best-effort so a race (or any seed error)
+    # is logged but never crashes application startup or corrupts a boot.
+    try:
+        counts = seed(reset=False)
+        log_event(logger, "demo_seed_on_boot", total=sum(counts.values()))
+    except Exception as exc:  # noqa: BLE001 - startup must not fail on seed
+        log_event(logger, "demo_seed_failed", level=logging.ERROR, error=str(exc))
 
 
 app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
@@ -82,6 +89,9 @@ app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=li
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    # Optional regex for additional origins (e.g. Vercel preview deployments).
+    # None by default → identical behaviour to an explicit origin list only.
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

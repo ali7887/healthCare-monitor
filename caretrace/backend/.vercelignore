@@ -1,0 +1,15 @@
+# Keep the serverless bundle lean and correct.
+# Local virtualenv and caches
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+
+# Local SQLite databases must never ship — the serverless filesystem is
+# read-only/ephemeral; production uses an external Postgres via DATABASE_URL.
+*.db
+caretrace_demo.db
+caretrace_e2e.db
+
+# Tests are not needed at runtime.
+tests

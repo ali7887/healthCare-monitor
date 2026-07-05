@@ -1,0 +1,14 @@
+# Runtime dependencies for the Vercel Python (@vercel/python) serverless build.
+#
+# Mirrors the runtime deps in pyproject.toml. Deliberately excludes:
+#   * uvicorn / gunicorn — Vercel wraps the ASGI `app` directly (no server process)
+#   * alembic            — migrations are run externally, not at runtime (see
+#                          docs/DEPLOY_PRODUCTION_BACKEND.md → Vercel serverless)
+# Constraints match pyproject.toml so local (uv) and Vercel stay in lockstep.
+fastapi>=0.115
+pydantic>=2.7
+pydantic-settings>=2.3
+sqlalchemy>=2.0
+psycopg[binary]>=3.1
+openai>=1.40
+httpx>=0.27

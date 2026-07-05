@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     # server runs on :3000 by default; add deployed origins here as needed.
     cors_origins: str = "http://localhost:3000"
 
+    # Optional regex of additional allowed origins, applied *in addition to*
+    # `cors_origins`. Read from `CORS_ORIGIN_REGEX`. Useful for Vercel preview
+    # deployments, whose subdomain changes per branch/commit, e.g.
+    #   ^https://caretrace-frontend-[a-z0-9-]+\.vercel\.app$
+    # Left unset (None) by default, so behaviour is unchanged for local/demo.
+    cors_origin_regex: str | None = None
+
     # Default provider selection (used by the orchestration factory)
     default_provider: str = "openai"
     default_model: str = "gpt-4o-mini"
