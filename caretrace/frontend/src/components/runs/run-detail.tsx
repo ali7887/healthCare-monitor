@@ -9,6 +9,8 @@ import {
   RunStatusBadge,
   StatusBadge,
 } from "@/components/common/status-badge";
+import { AiAssistantPanel } from "@/components/reviewer/ai-assistant-panel";
+import { ReasoningPanel } from "@/components/runs/reasoning-panel";
 import { ReviewActions } from "@/components/runs/review-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -230,6 +232,9 @@ export function RunDetailView({ runId }: { runId: string }) {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          <ReasoningPanel run={run} />
+          <AiAssistantPanel run={run} />
+
           <Card>
             <CardHeader className="flex flex-row items-center gap-2 space-y-0">
               <FileText className="h-4 w-4 text-muted-foreground" />

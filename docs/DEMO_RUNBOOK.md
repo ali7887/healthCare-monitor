@@ -75,7 +75,28 @@ Key line: *"The reviewer's correction is stored as `edited_output`; the original
 
 Then, optionally, try to act on that run again to show the **409 conflict guard**: a decided review is immutable — re-approving/re-rejecting is rejected, not silently re-applied.
 
-## 6. Observability (developer aside) — optional ~1 min
+## 6. AI reviewer assistant — advisory second read — ~1–2 min
+
+Still on a **needs-review** run, find the **AI reviewer assistant** panel (below
+the reasoning explanation). Click **Get AI analysis**:
+
+- The assistant performs a deterministic **differential + keyword** analysis of
+  the current extracted output and returns **potential clinical risks**, an
+  advisory **suggestion**, and a **synthetic confidence** score.
+- A clean state reads **Stable**; concerns read **Risk alert** (amber) — e.g.
+  "Systolic blood pressure (172 mmHg) is outside the expected range" or a
+  changed medication dose flagged against the medication chart.
+
+Key line: *"The assistant is strictly advisory — it never approves or rejects.
+Its risk thresholds are the **same** deterministic rules the routing engine
+uses, so it can't contradict the system's own decision. Today it's a
+deterministic stand-in wrapped in an async seam that a real LLM call can drop
+into without touching the API or the UI."*
+
+Note: the panel is **hidden once a run is decided** (reviewed/rejected) — a
+second read is redundant after a human decision is on record.
+
+## 7. Observability (developer aside) — optional ~1 min
 
 In dev mode a small **debug panel** pins to the corner exposing the raw time-series payload, the routing-series mapping, and live query states. *"This is dev-only — it's tree-shaken out of production builds — but it makes drift between the charts and the data obvious while building."*
 
@@ -121,7 +142,8 @@ npm run e2e:screens       # regenerate docs/screenshots/ from seeded data
 What the suite covers:
 
 - **Happy path** — open the dashboard (KPI strip, donut, trend all render) →
-  open a flagged run → edit the JSON output → approve → confirm the decision
+  open a flagged run → edit the JSON output → run the **AI reviewer assistant**
+  and confirm it surfaces a clinical risk → approve → confirm the decision
   persisted (`reviewed`, dropped from the queue) and the dashboard still renders.
 - **Reject flow** — reject a flagged run and confirm it persists as `rejected`.
 - **Already-decided run** — a resolved run shows its outcome and offers **no**
@@ -153,4 +175,5 @@ See the README's "Continuous integration" section for the full table.
 - **"Deterministic validation over model self-trust"** — rules run locally; confidence is derived, not asked for.
 - **"Traceability over black-box"** — raw response, parsed output, issues, routing reason, and confidence breakdown are all persisted per run.
 - **"Human review over unsafe automation"** — critical issues force review regardless of score; edited approvals preserve the original.
-- **"Tested and hardened"** — 86 backend + 25 frontend tests, a Playwright demo-path E2E suite, and a GitHub Actions quality gate; plus per-widget error boundaries, an immutable-decision 409 guard, and lazy-loaded charts.
+- **"Tested and hardened"** — 98 backend + 30 frontend tests, a Playwright demo-path E2E suite, and a GitHub Actions quality gate; plus per-widget error boundaries, an immutable-decision 409 guard, and lazy-loaded charts.
+- **"Advisory AI, human decision"** — the AI reviewer assistant flags clinical risks using the same deterministic thresholds as validation, but never approves or rejects; it's an async-shaped seam ready for a real LLM.

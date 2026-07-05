@@ -29,6 +29,7 @@ from app.models.enums import (
 )
 from app.models.review_item import ReviewItem
 from app.services.pipeline import PipelineRunResult
+from app.services.reasoning import build_reasoning_summary
 from app.services.routing import RoutingDecision as ServiceRoutingDecision
 
 class ReviewConflictError(Exception):
@@ -76,6 +77,13 @@ def persist_run(
 
     warnings_count = sum(1 for issue in result.issues if issue.severity == "warning")
 
+    reasoning_summary = build_reasoning_summary(
+        succeeded=result.succeeded,
+        decision=routing.decision.value if routing else None,
+        confidence=confidence.score if confidence else None,
+        issues=[(i.severity, i.message, i.rule_id) for i in result.issues],
+    )
+
     run = Run(
         transcript=transcript,
         provider=Provider(provider_name),
@@ -95,6 +103,7 @@ def persist_run(
         confidence_breakdown=(
             confidence.breakdown.model_dump(mode="json") if confidence else None
         ),
+        reasoning_summary=reasoning_summary,
     )
 
     for issue in result.issues:
@@ -138,6 +147,18 @@ def pending_review_id(run: Run) -> UUID | None:
     for item in run.review_items:
         if item.status == ReviewStatus.pending:
             return item.id
+    return None
+
+
+def review_notes(run: Run) -> str | None:
+    """Return the reviewer notes recorded on this run's review item, if any.
+
+    A run has at most one review item; this surfaces the operator's notes for the
+    read-only audit trail on decided runs (and any note saved on a pending item).
+    """
+    for item in run.review_items:
+        if item.reviewer_notes:
+            return item.reviewer_notes
     return None
 
 

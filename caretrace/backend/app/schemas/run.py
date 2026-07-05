@@ -57,6 +57,11 @@ class RunDetailResponse(BaseModel):
     created_at: datetime
     # Pending review item for this run (null unless status is needs_review).
     pending_review_id: UUID | None = None
+    # Step-by-step account of the routing decision (Phase 20).
+    reasoning_summary: str | None = None
+    # Operator notes recorded on the review item — the read-only audit trail on
+    # decided runs.
+    reviewer_notes: str | None = None
 
 
 class PaginatedRunResponse(BaseModel):

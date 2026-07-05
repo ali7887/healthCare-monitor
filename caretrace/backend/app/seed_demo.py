@@ -37,9 +37,11 @@ from app.models.enums import (
     Severity,
 )
 from app.models.review_item import ReviewItem
+from app.services.reasoning import build_reasoning_summary
 
 # Import the models package so every table is registered before create_all.
 import app.models  # noqa: F401,E402
+from app.core.config import get_settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
 
 
@@ -267,6 +269,12 @@ def _make_run(spec: Spec, now: datetime) -> Run:
         final = spec.edited_output if spec.edited_output is not None else note
 
     raw = None if note is None else "{...model JSON...}"
+    reasoning = build_reasoning_summary(
+        succeeded=spec.status != RunStatus.failed,
+        decision=spec.routing.value,
+        confidence=spec.confidence,
+        issues=[(sev.value, message, rule_id) for _, sev, _, message, rule_id in spec.issues],
+    )
     run = Run(
         transcript=_TRANSCRIPTS["en"],
         provider=spec.provider,
@@ -282,6 +290,7 @@ def _make_run(spec: Spec, now: datetime) -> Run:
         routing_decision=spec.routing,
         routing_reason=spec.reason,
         confidence_breakdown=spec.breakdown,
+        reasoning_summary=reasoning,
         created_at=created,
         updated_at=created,
     )
@@ -309,15 +318,23 @@ def _make_run(spec: Spec, now: datetime) -> Run:
 
 
 def seed(*, reset: bool = True) -> dict[str, int]:
-    """Populate the database with the demo dataset. Returns a status→count map."""
+    """Populate the database with the demo dataset. Returns a status→count map.
+
+    On SQLite (the local/demo default) a reset does a full drop+create so schema
+    changes (new columns) are picked up automatically without a migration step.
+    On Postgres, where Alembic owns the schema, a reset only clears rows.
+    """
     import app.models  # noqa: F401  (ensure tables are registered)
 
+    if reset and get_settings().is_sqlite:
+        Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 
     db = SessionLocal()
     try:
-        if reset:
-            # Delete children first for engines without cascade enforcement.
+        if reset and not get_settings().is_sqlite:
+            # Postgres: schema is Alembic-managed, so clear rows only. Delete
+            # children first for engines without cascade enforcement.
             db.query(ValidationLog).delete()
             db.query(ReviewItem).delete()
             db.query(Run).delete()

@@ -57,6 +57,8 @@ export interface RunDetail {
   issues: ValidationIssue[];
   created_at: string;
   pending_review_id: string | null;
+  reasoning_summary: string | null;
+  reviewer_notes: string | null;
 }
 
 export interface PaginatedRuns {
@@ -110,4 +112,16 @@ export interface ReviewActionResponse {
   run_id: string;
   status: ReviewStatus;
   run_status: RunStatus;
+}
+
+// --- AI Reviewer Assistant (Phase 21) ---------------------------------------
+
+export interface AssistantAnalyzeRequest {
+  edited_output: Record<string, unknown>;
+}
+
+export interface AssistantAnalysis {
+  clinical_risks: string[];
+  suggestion: string;
+  confidence_score: number;
 }

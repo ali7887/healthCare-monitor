@@ -22,11 +22,16 @@ test("dashboard overview", async ({ page }) => {
 });
 
 test("run detail / trace viewer", async ({ page, request }) => {
-  const run = await firstRunWithStatus(request, "auto_saved");
+  // A reviewed run exercises the full reasoning panel: confidence meter, policy
+  // violations, decision path, and the read-only reviewer-notes audit trail.
+  const run = await firstRunWithStatus(request, "reviewed");
   await page.goto(`/dashboard/runs/${run.id}`);
+  await expect(page.getByTestId("reasoning-panel")).toBeVisible();
+  await expect(page.getByTestId("confidence-meter")).toBeVisible();
+  await expect(page.getByTestId("reasoning-summary")).toBeVisible();
+  await expect(page.getByTestId("reviewer-notes-audit")).toBeVisible();
   // Card titles are styled divs, not headings — match on their text.
   await expect(page.getByText("Extracted clinical fields")).toBeVisible();
-  await expect(page.getByText("Confidence breakdown")).toBeVisible();
   await page.screenshot({ path: `${OUT}/02-run-detail-trace.png`, fullPage: true });
 });
 

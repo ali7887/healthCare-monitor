@@ -11,6 +11,10 @@ from app.api.deps import get_db
 from app.models import Run
 from app.models.enums import RoutingDecision
 from app.models.validation_log import ValidationLog
+from app.schemas.assistant import (
+    AssistantAnalysisResponse,
+    AssistantAnalyzeRequest,
+)
 from app.schemas.clinical_note import ClinicalNote
 from app.schemas.run import (
     ConfidenceBreakdownSchema,
@@ -18,7 +22,13 @@ from app.schemas.run import (
     RunDetailResponse,
 )
 from app.schemas.validation import ValidationIssue
-from app.services.persistence import get_run, get_runs, pending_review_id
+from app.services.assistant import AssistantService, RunNotFoundError
+from app.services.persistence import (
+    get_run,
+    get_runs,
+    pending_review_id,
+    review_notes,
+)
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -61,6 +71,8 @@ def _to_detail(run: Run) -> RunDetailResponse:
         issues=[_issue_from_log(log) for log in run.validation_logs],
         created_at=run.created_at,
         pending_review_id=pending_review_id(run),
+        reasoning_summary=run.reasoning_summary,
+        reviewer_notes=review_notes(run),
     )
 
 
@@ -99,3 +111,28 @@ def get_run_detail(
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
     return _to_detail(run)
+
+
+@router.post("/{run_id}/analyze", response_model=AssistantAnalysisResponse)
+async def analyze_run(
+    run_id: UUID,
+    payload: AssistantAnalyzeRequest,
+    db: Session = Depends(get_db),
+) -> AssistantAnalysisResponse:
+    """Advisory AI-assistant analysis of the reviewer's current output.
+
+    Returns potential clinical risks, an advisory suggestion, and a synthetic
+    confidence. Advisory only — it never changes the run. 404 if the run does
+    not exist; 422 if ``edited_output`` is not a JSON object.
+    """
+    try:
+        analysis = await AssistantService().analyze_review(
+            db, run_id, payload.edited_output
+        )
+    except RunNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Run not found") from exc
+    return AssistantAnalysisResponse(
+        clinical_risks=analysis.clinical_risks,
+        suggestion=analysis.suggestion,
+        confidence_score=analysis.confidence_score,
+    )

@@ -44,6 +44,10 @@ class Run(UUIDMixin, TimestampMixin, Base):
     confidence_breakdown: Mapped[dict[str, Any] | None] = mapped_column(
         JSON, nullable=True
     )
+    # Human-readable, step-by-step account of how the routing decision was
+    # reached (Phase 20). Newline-separated "Step N: ..." lines; rendered as an
+    # ordered list in the trace viewer's reasoning panel.
+    reasoning_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     validation_logs: Mapped[list["ValidationLog"]] = relationship(
         back_populates="run",

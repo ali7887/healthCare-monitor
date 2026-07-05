@@ -108,6 +108,7 @@ export function ReviewActions({ run }: { run: RunDetail }) {
               </label>
               <Textarea
                 id="reviewer-notes"
+                data-testid="reviewer-notes-input"
                 placeholder="Add context for this decision…"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
