@@ -8,7 +8,13 @@ on:
   push:
     branches: [main, master]
   pull_request:
-  workflow_dispatch: # allows manual runs (used to refresh screenshots on demand)
+  workflow_dispatch: # allows manual runs (refresh screenshots / trigger a deploy)
+    inputs:
+      deploy_target:
+        description: "Deploy after checks pass (manual only)"
+        type: choice
+        default: none
+        options: [none, frontend, backend, both]
 
 # Cancel superseded runs on the same ref to save minutes.
 concurrency:
@@ -144,3 +150,49 @@ jobs:
           name: demo-screenshots
           path: docs/screenshots/*.png
           retention-days: 14
+
+  # --- Manual only: deploy frontend (Vercel) + backend (Render) --------------
+  # Never runs on push/PR. Triggered only via "Run workflow" with a
+  # deploy_target other than `none`, and only after all quality gates pass.
+  # Requires repository secrets (documented in docs/DEPLOY_PRODUCTION_*.md):
+  #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID   (frontend)
+  #   RENDER_DEPLOY_HOOK_URL                            (backend)
+  deploy:
+    name: Deploy (manual)
+    runs-on: ubuntu-latest
+    needs: [frontend, backend, e2e]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_target != 'none' }}
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy backend → Render (deploy hook)
+        if: ${{ inputs.deploy_target == 'backend' || inputs.deploy_target == 'both' }}
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "${RENDER_DEPLOY_HOOK_URL}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL secret is not set."; exit 1
+          fi
+          curl -fsSL -X POST "${RENDER_DEPLOY_HOOK_URL}"
+          echo "Triggered Render deploy."
+
+      - uses: actions/setup-node@v4
+        if: ${{ inputs.deploy_target == 'frontend' || inputs.deploy_target == 'both' }}
+        with:
+          node-version: 20
+
+      - name: Deploy frontend → Vercel
+        if: ${{ inputs.deploy_target == 'frontend' || inputs.deploy_target == 'both' }}
+        working-directory: caretrace/frontend
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "${VERCEL_TOKEN}" ]; then
+            echo "::error::VERCEL_TOKEN secret is not set."; exit 1
+          fi
+          npx vercel pull --yes --environment=production --token="${VERCEL_TOKEN}"
+          npx vercel build --prod --token="${VERCEL_TOKEN}"
+          npx vercel deploy --prebuilt --prod --token="${VERCEL_TOKEN}"

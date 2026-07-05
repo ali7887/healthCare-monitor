@@ -1,8 +1,8 @@
 # CareTrace (healthCare-monitor) — Project Status & Context Sync
 
 Last updated: 2026-07-05  
-Current phase: **Phase 22 complete**  
-Overall status: **Portfolio-grade MVP complete, fully validated locally, CI-configured, ready for next product/depth phase**
+Current phase: **Phase 23 complete**  
+Overall status: **Deployment-ready, portfolio-publishable product — production config, health/readiness probes, deploy runbooks, and CI in place; fully validated locally**
 
 ---
 
@@ -180,3 +180,24 @@ A thin, local-first observability layer — no external vendors, collectors, Doc
 - **Privacy:** logs and telemetry carry ids/statuses/counts only — enforced at the helper boundary.
 
 Validation: **107 backend** + **41 frontend** tests green; `tsc` clean; `ci:frontend` (typecheck + unit + build) clean, no new deps; E2E suite still green (the panel is dev-only, so production E2E is unaffected). No DB migration/reseed required.
+
+### Phase 23 — Production Deployment & Public Demo (readiness)
+**Status: complete and validated (in-repo readiness)**
+
+Turned the demo into a deployment-ready, portfolio-publishable product without heavy infra (no Docker/K8s; Postgres optional; SQLite still the local default).
+
+- **Backend**
+  - `app/core/config.py` — deployment modes via `CARETRACE_ENV` (`dev`/`demo`/`production`) with `is_production`/`is_demo`/`is_dev`, plus `CARETRACE_DEMO_SEED` and `CARETRACE_LOG_LEVEL` (resolved to a stdlib level). Unknown env falls back to `dev` so a typo can't enable production behaviour.
+  - `app/api/routes/system.py` — `GET /health` (liveness + DB round-trip) and `GET /ready` (DB + core `runs` schema present), both returning **503** on failure with per-probe detail. Replaces the old liveness-only `health.py`; `/api/health`'s `{status,service}` contract is preserved (existing smoke test still green).
+  - Production logging profile — `configure_logging(level=settings.log_level)` so verbosity is env-driven.
+  - Guarded boot-time demo seed — in `main.py` lifespan, seeds the deterministic dataset **only if the DB is empty** and `CARETRACE_DEMO_SEED=1`; never resets an existing/production DB.
+  - `start_production.sh` — runs `alembic upgrade head` on non-SQLite `DATABASE_URL`, optional seed note, launches uvicorn with worker/keep-alive/proxy-header tuning.
+- **Frontend**
+  - `.env.production.example` — template (`NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_OBSERVABILITY=0`). Deliberately a template, not a committed `.env.production`, since Next inlines `NEXT_PUBLIC_*` at build time.
+  - `e2e/screenshots-prod/` capture spec + `screenshots-prod` Playwright project + `npm run e2e:screens:prod` → curated portfolio set in `docs/screenshots/production/` (adds the AI assistant panel shot).
+- **CI** — manual-only `deploy` job in `ci.yml` (`workflow_dispatch` with a `deploy_target` input; gated on `frontend`/`backend`/`e2e`; Vercel + Render via repository secrets). Never runs on push/PR.
+- **Docs** — `docs/DEPLOY_PRODUCTION_FRONTEND.md`, `docs/DEPLOY_PRODUCTION_BACKEND.md`, `docs/PRODUCT_OVERVIEW.md` (executive summary + screenshots + ASCII architecture/flow diagrams + CI table); README polished (Features list, live-demo/API placeholders, Deploy section, doc links); ENGINEERING_DECISIONS #12.
+
+**Out of scope / requires your accounts:** the actual live Vercel/Render deploy, the public demo URL, deploy secrets, and screenshots taken against live infra. Everything is code/tests/docs/CI-ready so deployment is a few dashboard steps.
+
+Validation: **117 backend** (+10) + **41 frontend** tests green; `tsc` clean; `ci:frontend` (typecheck + unit + build) clean, no new deps; E2E suite green; production screenshot set regenerated.

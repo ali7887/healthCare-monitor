@@ -57,6 +57,12 @@ export default defineConfig({
       testDir: "./e2e/screenshots",
       use: { ...devices["Desktop Chrome"], channel: "chrome", viewport: { width: 1440, height: 900 } },
     },
+    {
+      // Curated portfolio set → docs/screenshots/production/ (see PRODUCT_OVERVIEW.md).
+      name: "screenshots-prod",
+      testDir: "./e2e/screenshots-prod",
+      use: { ...devices["Desktop Chrome"], channel: "chrome", viewport: { width: 1440, height: 900 } },
+    },
   ],
 
   webServer: [

@@ -6,6 +6,26 @@ healthCare-monitor turns unstructured nursing/caregiver transcripts into structu
 
 > This is a robust, demo-ready MVP built to showcase reliability engineering around LLM output — not a certified medical device. It does **not** diagnose, prescribe, or recommend treatment; it structures documentation and surfaces *potential inconsistencies* for human review.
 
+**Live demo:** _`<set your Vercel URL>`_ · **API:** _`<set your Render/Railway URL>`/api_ · **One-page overview:** [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md)
+
+<!-- After the first deploy, fill the URLs above (see docs/DEPLOY_PRODUCTION_*.md) and optionally add a CI badge:
+[![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml) -->
+
+---
+
+## Features
+
+- **Structured extraction** of clinical documentation from free-text transcripts (provider abstraction over OpenAI GPT-4o-mini or local Ollama).
+- **Deterministic schema + clinical validation** with a bounded single retry — the reliability logic is pure, local, and unit-tested.
+- **Locally derived confidence** (never asked of the model) with a persisted, explainable penalty breakdown.
+- **Automatic routing** to auto-save / human review / reject, with an operational dashboard: KPI strip, routing donut, and per-day throughput trend.
+- **Trace viewer** exposing transcript, raw vs parsed vs final output, validation issues, and the confidence breakdown for every run.
+- **Reasoning panel** — a deterministic, color-coded explanation (confidence meter, policy violations, decision path, reviewer-notes audit); the model never narrates itself.
+- **AI reviewer assistant** — an advisory, deterministic second read of an edit (content + diff risks, `stable`/`risk_alert`); never auto-decides.
+- **Human-in-the-loop review** — approve/reject with optional edit-before-approve that preserves the original model output; decisions are immutable (409 guard).
+- **Local-first observability** — per-request `X-Request-ID` correlation, structured JSON logs, safe telemetry, and a dev-only observability panel.
+- **Production-ready** — environment modes (`dev`/`demo`/`production`), `/health` + `/ready` probes, Postgres-ready models, and one-command deploy guides for Vercel + Render/Railway.
+
 ---
 
 ## Why this project is interesting
@@ -15,7 +35,7 @@ Naive "call the LLM and store the JSON" pipelines fail exactly where healthcare 
 - **Deterministic validation over model self-trust.** The model is never asked how confident it is. Confidence is *derived locally* from concrete validation outcomes.
 - **Traceability by default.** Every run persists its raw response, parsed output, validation issues, routing decision, and the confidence breakdown that produced it.
 - **Human-in-the-loop as a first-class path**, including *edited approvals* where a reviewer's correction is stored without ever overwriting the original model output.
-- **Tested and hardened**: 107 backend tests + 41 frontend tests, per-widget error boundaries, an immutable-decision conflict guard, a lazy-loaded chart layer, and a thin local-first observability layer (request correlation ids, structured logs, telemetry).
+- **Tested and hardened**: 117 backend tests + 41 frontend tests, per-widget error boundaries, an immutable-decision conflict guard, a lazy-loaded chart layer, and a thin local-first observability layer (request correlation ids, structured logs, telemetry).
 
 See [`docs/ENGINEERING_DECISIONS.md`](docs/ENGINEERING_DECISIONS.md) for the tradeoffs behind each of these.
 
@@ -108,7 +128,7 @@ Open <http://localhost:3000/dashboard>.
 ## Test
 
 ```bash
-# Backend — 107 tests
+# Backend — 117 tests
 cd caretrace/backend && uv run pytest
 
 # Frontend — 41 tests, types, and production build
@@ -167,6 +187,24 @@ cd caretrace/backend && uv run python -m app.seed_demo
 
 ---
 
+## Deploy
+
+CareTrace deploys as a **Next.js app on Vercel** pointed at a **FastAPI backend on
+Render/Railway** — no Docker, no Kubernetes, and Postgres is optional (SQLite is a
+valid demo default). The backend exposes `/api/health` (liveness + DB) and
+`/api/ready` (DB + schema) for the host's health checks, and reads its mode from
+`CARETRACE_ENV` (`dev` / `demo` / `production`).
+
+- **Frontend → Vercel:** [`docs/DEPLOY_PRODUCTION_FRONTEND.md`](docs/DEPLOY_PRODUCTION_FRONTEND.md)
+- **Backend → Render/Railway:** [`docs/DEPLOY_PRODUCTION_BACKEND.md`](docs/DEPLOY_PRODUCTION_BACKEND.md)
+- **Product overview (screenshots + diagrams):** [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md)
+
+A **manual** `deploy` job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+(triggered via *Run workflow*, never on push) can deploy after all gates pass,
+given the documented repository secrets.
+
+---
+
 ## Scope
 
 Intentionally excluded to keep the MVP focused: authentication, RBAC, multi-tenancy, voice/audio streaming, RAG / vector search, real EHR integration, notifications, realtime collaboration, billing, and any diagnosis/treatment functionality.
@@ -179,6 +217,8 @@ Intentionally excluded to keep the MVP focused: authentication, RBAC, multi-tena
 - [`docs/API.md`](docs/API.md) — HTTP contracts
 - [`docs/AI_PIPELINE.md`](docs/AI_PIPELINE.md) — end-to-end processing pipeline
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — local/demo setup
+- [`docs/DEPLOY_PRODUCTION_FRONTEND.md`](docs/DEPLOY_PRODUCTION_FRONTEND.md) · [`docs/DEPLOY_PRODUCTION_BACKEND.md`](docs/DEPLOY_PRODUCTION_BACKEND.md) — production deploy (Vercel + Render/Railway)
+- [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md) — one-page product overview with screenshots and diagrams
 - [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) — presentation script
 - [`docs/TESTING.md`](docs/TESTING.md) · [`docs/QA_CHECKLIST.md`](docs/QA_CHECKLIST.md) — testing strategy & QA
 - [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) — clinical-calm design system
