@@ -4,7 +4,7 @@
 
 [![Backend](https://img.shields.io/badge/backend-FastAPI%20%C2%B7%20Python%203.13-009688)](caretrace/backend)
 [![Frontend](https://img.shields.io/badge/frontend-Next.js%2015%20%C2%B7%20TypeScript-111111)](caretrace/frontend)
-[![Tests](https://img.shields.io/badge/tests-119%20backend%20%C2%B7%2044%20frontend-10b981)](docs/TESTING.md)
+[![Tests](https://img.shields.io/badge/tests-120%20backend%20%C2%B7%2049%20frontend-10b981)](docs/TESTING.md)
 [![Database](https://img.shields.io/badge/database-Postgres%20%2F%20SQLite-336791)](docs/DEPLOYMENT.md)
 
 CareTrace turns unstructured nursing/caregiver transcripts into structured clinical notes, then treats the model's output as **untrusted until proven otherwise**: every extraction passes deterministic schema and clinical-rule validation, receives a locally derived confidence score, and is either auto-saved or **flagged for human review**. Every run is stored as a complete, auditable trace.
@@ -93,8 +93,8 @@ To process live transcripts (optional), set `OPENAI_API_KEY` in the backend `.en
 ## Testing
 
 ```bash
-cd caretrace/backend  && uv run pytest        # 119 tests
-cd caretrace/frontend && npm test -- --run    # 44 tests
+cd caretrace/backend  && uv run pytest        # 120 tests
+cd caretrace/frontend && npm test -- --run    # 49 tests
 ```
 
 Test priorities mirror the product's reliability goals: schema validation, clinical rules, retry behavior, confidence scoring, and routing decisions. Details in [`docs/TESTING.md`](docs/TESTING.md).
@@ -122,6 +122,8 @@ Base path `/api` — stable, versionless contract documented in [`docs/API.md`](
 | [`docs/AI_PIPELINE.md`](docs/AI_PIPELINE.md) | Extraction, validation, scoring, and routing internals |
 | [`DECISIONS.md`](DECISIONS.md) / [`docs/ENGINEERING_DECISIONS.md`](docs/ENGINEERING_DECISIONS.md) | Recorded trade-offs |
 | [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | Step-by-step live-demo script |
+| [`SECURITY.md`](SECURITY.md) | Secrets policy, rotation runbook, PHI-safe logging |
+| [`RELEASE_NOTES.md`](RELEASE_NOTES.md) | Current release: features, demo script, limitations |
 
 ## Product principles
 

@@ -17,14 +17,16 @@ export function formatCost(value: number | null | undefined): string {
 
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
-  // Day-first, 24-hour, with an explicit timezone label (e.g. "06 Jul 2026,
-  // 14:32 CEST") — unambiguous for European readers and auditable in demos.
+  // Fixed rendering: "06 Jul 2026, 14:32 UTC". Day-first and 24-hour for
+  // European readers, pinned to UTC so a timestamp reads identically on every
+  // machine in a demo or audit — never re-interpreted in a viewer-local zone.
   return new Date(iso).toLocaleString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
     timeZoneName: "short",
   });
 }
