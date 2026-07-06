@@ -1,22 +1,18 @@
 # CareTrace (healthCare-monitor) — Project Status & Context Sync
 
-Last updated: 2026-07-05  
-Current phase: **Phase 23 complete; live backend deployment in progress (Vercel serverless)**  
-Overall status: **Frontend deployed on Vercel; backend migrated to Vercel Python Serverless — entrypoint/`vercel.json`/`requirements.txt` in place; pending live env config (Postgres `DATABASE_URL`, CORS) and frontend API-URL wiring**
+Last updated: 2026-07-06  
+Current phase: **Live in production (Vercel serverless + Neon Postgres); demo-hardening pass complete**  
+Overall status: **Frontend live at `health-care-monitor-steel.vercel.app`; backend live at `caretrace-backend.vercel.app` (Vercel Python Serverless, pooled Neon Postgres); seeded, verified via `/api/health` + `/api/ready`**
 
 > **Backend deployment target changed:** Render → **Vercel serverless** (Python
 > Function wrapping the FastAPI ASGI app). Active backend domain:
-> `fastapi-blush-two.vercel.app`. Serverless files live in `caretrace/backend/`
+> `caretrace-backend.vercel.app`. Serverless files live in `caretrace/backend/`
 > (`api/index.py`, `vercel.json`, `requirements.txt`, `.vercelignore`). Render/
 > Railway remain a documented alternative. Because Vercel's filesystem is
 > read-only/ephemeral, the serverless backend **requires an external (pooled)
 > Postgres**; migrations and demo seeding are run **externally, once**, not on
-> cold start. See `docs/DEPLOY_PRODUCTION_BACKEND.md → Vercel serverless`.
->
-> Remaining: set `DATABASE_URL` (pooled Postgres) + `CORS_ORIGINS` on the Vercel
-> backend project, run `alembic upgrade head` + `seed_demo` against prod DB once,
-> then set frontend `NEXT_PUBLIC_API_BASE_URL=https://fastapi-blush-two.vercel.app/api`
-> and redeploy. Verify `/api/health` + `/api/ready` and the end-to-end demo path.
+> cold start. Operator runbook: `docs/GO_LIVE_VERCEL.md` (deploy, verify, seed,
+> rollback); security policy: `SECURITY.md`.
 
 ---
 

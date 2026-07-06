@@ -55,9 +55,13 @@ curl.exe -i https://caretrace-backend.vercel.app/
 # Expect: HTTP 404 with JSON body {"detail":"Not Found"}
 #         → CareTrace's FastAPI app is live (it defines no root route).
 
-# 2. Liveness + DB connectivity
+# 2. Liveness + DB connectivity + build fingerprint
 curl.exe -i https://caretrace-backend.vercel.app/api/health
-# Expect: HTTP 200 {"status":"ok","service":"healthCare-monitor-backend"}
+# Expect: HTTP 200 {"status":"ok","service":"healthCare-monitor-backend",
+#                   "env":"production","version":"0.1.0","build":"<short sha>",
+#                   "uptime_s":…}
+#         "build" is the deployed commit (from VERCEL_GIT_COMMIT_SHA) — use it
+#         to confirm which commit is actually serving traffic.
 
 # 3. Readiness: schema present, correct env
 curl.exe -i https://caretrace-backend.vercel.app/api/ready
@@ -114,7 +118,56 @@ curl.exe https://caretrace-backend.vercel.app/api/dashboard/stats
 
 ---
 
-## 4. Post-go-live security wrap-up
+## 4. Seeding / re-seeding the database
+
+The seeded dataset is deterministic: fixed transcripts, notes, issues, and
+confidence breakdowns; only the timestamps are relative to the moment the seed
+runs (runs are spread over the previous 14 days so the throughput chart is
+always populated). Re-run the seed after any `seed_demo.py` change.
+
+**Local (SQLite — safe to run any time):**
+
+```powershell
+cd caretrace/backend
+uv run python -m app.seed_demo          # reset + seed 19 runs
+```
+
+**Production (Neon):** use the **DIRECT** connection string (host *without*
+`-pooler`) transiently — never store it, never use it as the runtime URL:
+
+```powershell
+cd caretrace/backend
+$env:DATABASE_URL = "<DIRECT Neon URL>"   # paste from Neon console, direct host
+uv run alembic upgrade head               # only if migrations changed
+uv run python -m app.seed_demo            # deletes rows, re-seeds 19 runs
+Remove-Item Env:DATABASE_URL
+```
+
+Expected output ends with `Seeded 19 demo runs (reset)` and the status counts
+(11 auto_saved / 3 needs_review / 2 reviewed / 2 rejected / 1 failed). Verify
+with `GET /api/dashboard/stats` → `"total_runs": 19`.
+
+---
+
+## 5. Rollback
+
+Application rollback (bad deploy, either project):
+
+1. Vercel dashboard → project → **Deployments** → pick the last known-good
+   deployment → **⋯ → Promote to Production**. This is instant and does not
+   rebuild.
+2. Verify with §2 (backend) / §3.3 (frontend). `/api/health` → `build` should
+   show the rolled-back commit SHA.
+3. Revert or fix the offending commit on `main` before the next push, otherwise
+   the next auto-deploy reintroduces it.
+
+Data rollback (bad seed / accidental writes): re-run the seed (§4) — it resets
+all rows deterministically. For anything beyond demo data, use a Neon
+point-in-time branch restore.
+
+---
+
+## 6. Post-go-live security wrap-up
 
 The Neon password was exposed during setup and **must be rotated**:
 
@@ -124,5 +177,5 @@ The Neon password was exposed during setup and **must be rotated**:
 3. Redeploy the backend.
 4. Re-run the verification routine (§2) end-to-end.
 
-Then finish the release: fill the live demo/API URL placeholders in
-`README.md`.
+Rotation steps in detail (incl. least-privilege guidance): see `SECURITY.md`
+at the repository root.

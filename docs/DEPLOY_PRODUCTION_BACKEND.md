@@ -34,7 +34,7 @@ ASGI app — Vercel invokes the app directly, so no uvicorn/gunicorn process run
 3. **Framework Preset:** Other. No build command is needed; `@vercel/python`
    installs `requirements.txt` and builds the function.
 4. Set the environment variables (table below), then deploy. The active domain in
-   this project is `fastapi-blush-two.vercel.app`.
+   this project is `caretrace-backend.vercel.app`.
 
 ### Environment variables (Vercel backend project)
 
@@ -85,14 +85,14 @@ not shared across instances). Therefore:
 ### Verify
 
 ```bash
-curl https://fastapi-blush-two.vercel.app/api/health
-# {"status":"ok","service":"healthCare-monitor-backend"}
-curl https://fastapi-blush-two.vercel.app/api/ready
+curl https://caretrace-backend.vercel.app/api/health
+# {"status":"ok","service":"healthCare-monitor-backend", ... "build":"<sha>"}
+curl https://caretrace-backend.vercel.app/api/ready
 # {"status":"ready", ... ,"checks":{"database":true,"schema":true}}
 ```
 
 Then set the frontend's `NEXT_PUBLIC_API_BASE_URL` to
-`https://fastapi-blush-two.vercel.app/api` and redeploy the frontend (see
+`https://caretrace-backend.vercel.app/api` and redeploy the frontend (see
 [`DEPLOY_PRODUCTION_FRONTEND.md`](DEPLOY_PRODUCTION_FRONTEND.md)).
 
 ---

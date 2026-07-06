@@ -17,6 +17,12 @@ and review queue all have meaningful content out of the box:
 Counts are modest and plausible — this is a demo dataset, not synthetic
 production traffic. Runs are spread across the last two weeks so the throughput
 trend and routing donut render a natural distribution.
+
+Determinism: everything except timestamps is fixed — transcripts, notes,
+issues, penalties (and therefore the derived confidence scores), statuses,
+retry counts, and reviewer decisions are identical on every run. Timestamps
+are relative to the **seed run time** (day offsets back from "now") so the
+14-day throughput window is always populated no matter when the demo happens.
 """
 
 from __future__ import annotations
