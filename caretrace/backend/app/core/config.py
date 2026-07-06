@@ -8,6 +8,7 @@ so importing this module never requires the environment to be fully configured.
 import logging
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Recognised deployment modes. `dev` is the local default; `demo` is a public
@@ -82,6 +83,21 @@ class Settings(BaseSettings):
     # Ollama provider (local)
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5"
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, value: str) -> str:
+        """Normalise Postgres URL schemes to the installed psycopg (v3) driver.
+
+        Providers hand out `postgres://` / `postgresql://` strings; on SQLAlchemy
+        those select the psycopg2 driver, which is not installed, so an unedited
+        paste would crash engine creation. Explicit driver schemes (e.g.
+        `postgresql+psycopg://`) and non-Postgres URLs pass through untouched.
+        """
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+psycopg://" + value[len(prefix) :]
+        return value
 
     @property
     def cors_origins_list(self) -> list[str]:

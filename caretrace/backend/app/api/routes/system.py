@@ -14,6 +14,7 @@ signal for "not ready — don't route traffic here yet."
 from __future__ import annotations
 
 import logging
+import re
 
 from fastapi import APIRouter, Depends
 from fastapi import status as http_status
@@ -32,22 +33,55 @@ router = APIRouter(tags=["system"])
 _logger = get_logger("system")
 
 
-def _db_reachable(db: Session) -> bool:
-    """Return True if a trivial round-trip to the database succeeds."""
+# user:password@ in a URL embedded in an error message — never log credentials.
+_URL_CREDENTIALS_RE = re.compile(r"://[^/@\s]+@")
+
+
+def _sanitize_error(exc: Exception) -> str:
+    """One-line, credential-free rendering of a database error."""
+    message = str(exc).splitlines()[0] if str(exc) else ""
+    return _URL_CREDENTIALS_RE.sub("://***@", message)
+
+
+def _db_target(db: Session) -> tuple[str, str | None]:
+    """The configured backend name and host (no credentials, no full URL)."""
+    url = db.get_bind().url
+    return url.get_backend_name(), url.host
+
+
+def _probe_database(db: Session) -> str | None:
+    """Round-trip ``SELECT 1``; return None on success, else the error class."""
     try:
         db.execute(text("SELECT 1"))
-        return True
-    except Exception:  # pragma: no cover - defensive; exercised via readiness
-        return False
+        return None
+    except Exception as exc:
+        _log_probe_failure(db, "database", exc)
+        return type(exc).__name__
 
 
-def _schema_present(db: Session) -> bool:
-    """Return True if the core ``runs`` table exists and is queryable."""
+def _probe_schema(db: Session) -> str | None:
+    """Query the core ``runs`` table; return None on success, else the error class."""
     try:
         db.query(Run).count()
-        return True
-    except Exception:
-        return False
+        return None
+    except Exception as exc:
+        _log_probe_failure(db, "schema", exc)
+        return type(exc).__name__
+
+
+def _log_probe_failure(db: Session, check: str, exc: Exception) -> None:
+    """Log a failed probe with enough sanitized detail to diagnose remotely."""
+    backend, host = _db_target(db)
+    log_event(
+        _logger,
+        "health_probe_failed",
+        level=logging.ERROR,
+        check=check,
+        db_backend=backend,
+        db_host=host,
+        error=type(exc).__name__,
+        detail=_sanitize_error(exc),
+    )
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -58,11 +92,21 @@ def health(db: Session = Depends(get_db)):
     database cannot be reached.
     """
     settings = get_settings()
-    if not _db_reachable(db):
-        log_event(_logger, "health_check_failed", level=logging.ERROR, check="database")
+    database_error = _probe_database(db)
+    if database_error is not None:
+        backend, host = _db_target(db)
         return JSONResponse(
             status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "unavailable", "service": settings.service_name},
+            content={
+                "status": "unavailable",
+                "service": settings.service_name,
+                "env": settings.env,
+                "diagnostics": {
+                    "db_backend": backend,
+                    "db_host": host,
+                    "error": database_error,
+                },
+            },
         )
     return HealthResponse(status="ok", service=settings.service_name)
 
@@ -75,14 +119,15 @@ def ready(db: Session = Depends(get_db)):
     probe failed. Any failing probe yields **503**.
     """
     settings = get_settings()
-    checks = {
-        "database": _db_reachable(db),
-        "schema": _schema_present(db),
+    errors = {
+        "database": _probe_database(db),
+        "schema": _probe_schema(db),
     }
-    ready_now = all(checks.values())
-    if not ready_now:
+    checks = {name: error is None for name, error in errors.items()}
+    if not all(checks.values()):
         failed = [name for name, ok in checks.items() if not ok]
         log_event(_logger, "readiness_check_failed", level=logging.ERROR, failed=failed)
+        backend, host = _db_target(db)
         return JSONResponse(
             status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
@@ -90,6 +135,14 @@ def ready(db: Session = Depends(get_db)):
                 "service": settings.service_name,
                 "env": settings.env,
                 "checks": checks,
+                # Credential-free pointers for remote diagnosis: which engine the
+                # deployment actually resolved (`sqlite` here in production means
+                # DATABASE_URL never reached the app) and what failed, by class.
+                "diagnostics": {
+                    "db_backend": backend,
+                    "db_host": host,
+                    "errors": {name: err for name, err in errors.items() if err},
+                },
             },
         )
     return ReadinessResponse(

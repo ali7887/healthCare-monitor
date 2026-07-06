@@ -43,6 +43,31 @@ def test_demo_seed_flag_defaults_off():
     assert Settings(caretrace_demo_seed=True).demo_seed_enabled is True
 
 
+# --- configuration: database URL normalization -------------------------------
+
+
+def test_database_url_normalizes_bare_postgres_schemes():
+    # Providers hand out postgres:// / postgresql:// — both must resolve to the
+    # installed psycopg (v3) driver instead of crashing on missing psycopg2.
+    assert (
+        Settings(database_url="postgres://u:p@host/db").database_url
+        == "postgresql+psycopg://u:p@host/db"
+    )
+    assert (
+        Settings(database_url="postgresql://u:p@host/db?sslmode=require").database_url
+        == "postgresql+psycopg://u:p@host/db?sslmode=require"
+    )
+
+
+def test_database_url_with_explicit_driver_or_sqlite_is_untouched():
+    assert (
+        Settings(database_url="postgresql+psycopg://u:p@host/db").database_url
+        == "postgresql+psycopg://u:p@host/db"
+    )
+    assert Settings().database_url == "sqlite:///./caretrace_demo.db"
+    assert Settings(database_url="sqlite:///./x.db").database_url == "sqlite:///./x.db"
+
+
 # --- configuration: log level -----------------------------------------------
 
 
@@ -104,3 +129,10 @@ def test_ready_returns_503_when_schema_missing(client):
     body = response.json()
     assert body["status"] == "not_ready"
     assert body["checks"]["schema"] is False
+
+    # Credential-free diagnostics identify the resolved engine and the failing
+    # probe's error class, so a remote 503 is diagnosable from the response.
+    diagnostics = body["diagnostics"]
+    assert diagnostics["db_backend"] == "sqlite"
+    assert "schema" in diagnostics["errors"]
+    assert "password" not in str(diagnostics).lower()

@@ -37,7 +37,21 @@ async def lifespan(_: FastAPI):
     dataset is loaded *only if the database is empty* — so a demo boots with data
     but an existing database (or a real production one) is never overwritten.
     """
-    if settings.is_sqlite:
+    if settings.is_sqlite and settings.is_production:
+        # Production must never run on the bundled SQLite default — it means
+        # DATABASE_URL did not reach the process (unset, typoed, or wrong env
+        # scope). Don't create_all (read-only serverless filesystems would crash
+        # the boot); log loudly and let /health / /ready report 503 with
+        # diagnostics instead of failing opaquely.
+        from app.core.logging import get_logger, log_event
+
+        log_event(
+            get_logger("startup"),
+            "production_database_misconfigured",
+            level=logging.ERROR,
+            detail="CARETRACE_ENV=production but DATABASE_URL resolves to SQLite",
+        )
+    elif settings.is_sqlite:
         import app.models  # noqa: F401  (register every table on Base.metadata)
         from app.db.base import Base
         from app.db.session import engine
