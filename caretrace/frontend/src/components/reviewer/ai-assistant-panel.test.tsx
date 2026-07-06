@@ -93,7 +93,10 @@ describe("AiAssistantPanel", () => {
 
     expect(await screen.findByTestId("assistant-risks")).toHaveTextContent(/Amlodipine/);
     expect(screen.getByText("Risk alert")).toBeInTheDocument();
-    expect(screen.getByText("72%")).toBeInTheDocument();
+    // The assistant's numeric confidence is intentionally not displayed:
+    // only the pipeline's derived confidence is presented as a scored signal.
+    expect(screen.queryByText(/assistant confidence/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("72%")).not.toBeInTheDocument();
   });
 
   it("shows a stable state when no risks are found", async () => {

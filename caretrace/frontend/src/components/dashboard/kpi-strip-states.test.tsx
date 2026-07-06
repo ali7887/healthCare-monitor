@@ -38,7 +38,8 @@ describe("KpiStrip states", () => {
 
     render(<KpiStrip />);
     // Labels are always present; the numeric values are replaced by skeletons.
+    // Card labels use the routing vocabulary shared with badges/donut/chart.
     expect(screen.getByText(/total runs/i)).toBeInTheDocument();
-    expect(screen.getByText(/needs review/i)).toBeInTheDocument();
+    expect(screen.getByText(/human review/i)).toBeInTheDocument();
   });
 });

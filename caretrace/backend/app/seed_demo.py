@@ -47,7 +47,13 @@ from app.core.config import get_settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
 
 
-def _breakdown(final: float, *, failure=0.0, retry=0.0, severity=0.0, type_=0.0) -> dict[str, float]:
+def _breakdown(*, failure=0.0, retry=0.0, severity=0.0, type_=0.0) -> dict[str, float]:
+    """Additive breakdown mirroring ``ConfidenceScorer``.
+
+    The final score is *derived* from the penalties — never stated
+    independently — so every seeded trace satisfies
+    ``base - penalties == raw == final`` exactly as the live engine does.
+    """
     raw = round(1.0 - failure - retry - severity - type_, 4)
     return {
         "base_score": 1.0,
@@ -56,8 +62,18 @@ def _breakdown(final: float, *, failure=0.0, retry=0.0, severity=0.0, type_=0.0)
         "severity_penalties": severity,
         "type_penalties": type_,
         "raw_score": raw,
-        "final_score": final,
+        "final_score": round(max(0.0, min(1.0, raw)), 4),
     }
+
+
+def _omit(note: dict[str, Any], *, spo2: bool = False, age: bool = False) -> dict[str, Any]:
+    """A note variant with named fields absent, to pair with completeness warnings."""
+    out = {**note, "patient": dict(note["patient"]), "vitals": dict(note.get("vitals", {}))}
+    if spo2:
+        out["vitals"].pop("spo2", None)
+    if age:
+        out["patient"].pop("age", None)
+    return out
 
 
 # --- realistic (non-diagnostic) documentation notes -------------------------
@@ -95,15 +111,18 @@ NOTE_HIGH_BP: dict[str, Any] = {
     "vitals": {
         "blood_pressure": {"systolic": 172, "diastolic": 101, "unit": "mmHg"},
         "heart_rate": {"value": 92, "unit": "bpm"},
+        "spo2": {"value": 96, "unit": "%"},
     },
     "symptoms": [{"text": "headache"}],
     "observations": [{"text": "Elevated blood pressure recorded this shift."}],
+    "actions": [{"text": "Escalated to supervising nurse for blood pressure recheck."}],
     "note_summary": "Blood pressure above expected range; flagged for review.",
     "source_language": "en",
 }
 
 NOTE_MISSING_DOSE: dict[str, Any] = {
     "patient": {"name": "Jonas Wolf", "age": 59},
+    "vitals": {"spo2": {"value": 97, "unit": "%"}},
     "medications": [{"name": "Amlodipine", "route": "oral"}],
     "observations": [{"text": "Medication administered; dose not documented."}],
     "note_summary": "Medication dose missing from documentation.",
@@ -126,6 +145,13 @@ NOTE_MISSING_DOSE_EDITED: dict[str, Any] = {
     "note_summary": "Dose confirmed with chart and corrected by reviewer (5mg).",
 }
 
+# Incomplete-documentation variants. Each omission pairs with a completeness
+# warning below, so identical notes always carry identical issue lists.
+NOTE_STABLE_PARTIAL = _omit(NOTE_STABLE, spo2=True)
+NOTE_STABLE_MINIMAL = _omit(NOTE_STABLE, spo2=True, age=True)
+NOTE_HYDRATION_PARTIAL = _omit(NOTE_HYDRATION, spo2=True)
+NOTE_HYDRATION_MINIMAL = _omit(NOTE_HYDRATION, spo2=True, age=True)
+
 
 # --- one row spec -----------------------------------------------------------
 
@@ -133,16 +159,47 @@ NOTE_MISSING_DOSE_EDITED: dict[str, Any] = {
 # A validation issue: (type, severity, field_path, message, rule_id).
 Issue = tuple[IssueType, Severity, "str | None", str, "str | None"]
 
+# Deterministic validation produces identical issues for identical notes, so
+# shared issue tuples are reused wherever a note (or variant) recurs.
+WARN_SPO2_NOT_DOCUMENTED: Issue = (
+    IssueType.completeness, Severity.warning, "vitals.spo2",
+    "Oxygen saturation not documented.", "WARN_MISSING_SPO2")
+WARN_AGE_NOT_DOCUMENTED: Issue = (
+    IssueType.completeness, Severity.warning, "patient.age",
+    "Patient age not documented.", "WARN_MISSING_AGE")
+WARN_BP_SYSTOLIC: Issue = (
+    IssueType.clinical, Severity.warning, "vitals.blood_pressure.systolic",
+    "Systolic blood pressure above expected range (>140 mmHg).", "WARN_BP_HIGH")
+WARN_BP_DIASTOLIC: Issue = (
+    IssueType.clinical, Severity.warning, "vitals.blood_pressure.diastolic",
+    "Diastolic blood pressure above expected range (>90 mmHg).", "WARN_BP_HIGH")
+WARN_DOSE_MISSING: Issue = (
+    IssueType.completeness, Severity.warning, "medications.0.dose",
+    "Medication dose not documented.", "WARN_MISSING_DOSE")
+WARN_ACTION_MISSING: Issue = (
+    IssueType.completeness, Severity.warning, "actions",
+    "No follow-up action documented for the abnormal finding.", "WARN_MISSING_ACTION")
+CRIT_SPO2_LOW: Issue = (
+    IssueType.clinical, Severity.critical, "vitals.spo2.value",
+    "Oxygen saturation critically low (<90%).", "ERR_SPO2_LOW")
+CRIT_INVALID_JSON: Issue = (
+    IssueType.format, Severity.critical, None,
+    "Model response was not valid JSON.", "ERR_INVALID_JSON")
+
 
 @dataclass
 class Spec:
-    """A single demo run to create. ``day`` is an offset back from today."""
+    """A single demo run to create. ``day`` is an offset back from today.
+
+    There is deliberately no ``confidence`` field: the run's confidence is
+    always the breakdown's derived ``final_score`` (or ``None`` for failures),
+    so seeded scores can never drift from their own penalty arithmetic.
+    """
 
     day: int
     provider: Provider
     status: RunStatus
     routing: RoutingDecision
-    confidence: float | None
     note: dict[str, Any] | None
     reason: str
     latency_ms: int
@@ -157,102 +214,112 @@ class Spec:
 
 
 def _specs() -> list[Spec]:
+    """Demo runs whose penalties, issues, retries, and routing all agree.
+
+    Penalty magnitudes mirror the ``ConfidenceScorer`` weight tables — warning
+    severity 0.04/issue, critical severity 0.12/issue, type penalties 0.03
+    (completeness) / 0.04 (clinical) per issue, retries 0.15 plus a trigger
+    addon (provider 0.08, schema 0.12, invalid JSON 0.15) — and every derived
+    final score lands in the routing band its spec claims (auto-save >= 0.85,
+    review band [0.50, 0.85), reject < 0.50).
+    """
     P_OAI, P_OLL = Provider.openai, Provider.ollama
     return [
-        # --- auto-saved (clean, high confidence) ---------------------------
+        # --- auto-saved: clean notes score exactly 1.0; incomplete variants
+        # carry completeness warnings and land at 0.93 / 0.86 ----------------
         Spec(day=13, provider=P_OAI, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.97, note=NOTE_STABLE, reason="High confidence; no validation issues.",
-             latency_ms=880, cost=0.00021, breakdown=_breakdown(0.97)),
+             note=NOTE_STABLE, reason="No validation issues; saved automatically.",
+             latency_ms=880, cost=0.00021, breakdown=_breakdown()),
         Spec(day=12, provider=P_OAI, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.95, note=NOTE_HYDRATION, reason="High confidence; no validation issues.",
-             latency_ms=910, cost=0.00023, breakdown=_breakdown(0.95)),
+             note=NOTE_HYDRATION, reason="No validation issues; saved automatically.",
+             latency_ms=910, cost=0.00023, breakdown=_breakdown()),
         Spec(day=11, provider=P_OLL, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.9, note=NOTE_STABLE, reason="Above auto-save threshold.",
-             latency_ms=1420, cost=0.0, breakdown=_breakdown(0.9), warnings=1,
-             issues=[(IssueType.completeness, Severity.warning, "patient.patient_id",
-                      "Patient identifier not documented.", "WARN_MISSING_PATIENT_ID")]),
+             note=NOTE_STABLE_PARTIAL, reason="Minor completeness warning; above auto-save threshold.",
+             latency_ms=1420, cost=0.0, breakdown=_breakdown(severity=0.04, type_=0.03),
+             warnings=1, issues=[WARN_SPO2_NOT_DOCUMENTED]),
         Spec(day=10, provider=P_OAI, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.99, note=NOTE_STABLE, reason="High confidence; no validation issues.",
-             latency_ms=790, cost=0.0002, breakdown=_breakdown(0.99)),
+             note=NOTE_STABLE, reason="No validation issues; saved automatically.",
+             latency_ms=790, cost=0.0002, breakdown=_breakdown()),
         Spec(day=9, provider=P_OAI, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.93, note=NOTE_HYDRATION, reason="High confidence; no validation issues.",
-             latency_ms=845, cost=0.00022, breakdown=_breakdown(0.93)),
+             note=NOTE_HYDRATION_PARTIAL, reason="Minor completeness warning; above auto-save threshold.",
+             latency_ms=845, cost=0.00022, breakdown=_breakdown(severity=0.04, type_=0.03),
+             warnings=1, issues=[WARN_SPO2_NOT_DOCUMENTED]),
         Spec(day=7, provider=P_OLL, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.88, note=NOTE_STABLE, reason="Above auto-save threshold.",
-             latency_ms=1610, cost=0.0, breakdown=_breakdown(0.88)),
+             note=NOTE_STABLE_MINIMAL, reason="Two completeness warnings; above auto-save threshold.",
+             latency_ms=1610, cost=0.0, breakdown=_breakdown(severity=0.08, type_=0.06),
+             warnings=2, issues=[WARN_SPO2_NOT_DOCUMENTED, WARN_AGE_NOT_DOCUMENTED]),
         Spec(day=6, provider=P_OAI, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.96, note=NOTE_HYDRATION, reason="High confidence; no validation issues.",
-             latency_ms=870, cost=0.00021, breakdown=_breakdown(0.96)),
+             note=NOTE_HYDRATION, reason="No validation issues; saved automatically.",
+             latency_ms=870, cost=0.00021, breakdown=_breakdown()),
         Spec(day=4, provider=P_OAI, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.94, note=NOTE_STABLE, reason="High confidence; no validation issues.",
-             latency_ms=830, cost=0.0002, breakdown=_breakdown(0.94)),
+             note=NOTE_STABLE_PARTIAL, reason="Minor completeness warning; above auto-save threshold.",
+             latency_ms=830, cost=0.0002, breakdown=_breakdown(severity=0.04, type_=0.03),
+             warnings=1, issues=[WARN_SPO2_NOT_DOCUMENTED]),
         Spec(day=3, provider=P_OAI, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.91, note=NOTE_HYDRATION, reason="Above auto-save threshold.",
-             latency_ms=905, cost=0.00023, breakdown=_breakdown(0.91)),
+             note=NOTE_HYDRATION_MINIMAL, reason="Two completeness warnings; above auto-save threshold.",
+             latency_ms=905, cost=0.00023, breakdown=_breakdown(severity=0.08, type_=0.06),
+             warnings=2, issues=[WARN_SPO2_NOT_DOCUMENTED, WARN_AGE_NOT_DOCUMENTED]),
         Spec(day=1, provider=P_OAI, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.98, note=NOTE_STABLE, reason="High confidence; no validation issues.",
-             latency_ms=810, cost=0.0002, breakdown=_breakdown(0.98)),
+             note=NOTE_STABLE, reason="No validation issues; saved automatically.",
+             latency_ms=810, cost=0.0002, breakdown=_breakdown()),
         Spec(day=0, provider=P_OAI, status=RunStatus.auto_saved, routing=RoutingDecision.auto_save,
-             confidence=0.92, note=NOTE_HYDRATION, reason="Above auto-save threshold.",
-             latency_ms=860, cost=0.00021, breakdown=_breakdown(0.92)),
+             note=NOTE_HYDRATION_PARTIAL, reason="Minor completeness warning; above auto-save threshold.",
+             latency_ms=860, cost=0.00021, breakdown=_breakdown(severity=0.04, type_=0.03),
+             warnings=1, issues=[WARN_SPO2_NOT_DOCUMENTED]),
 
         # --- needs review (pending in the queue) ---------------------------
+        # NOTE_HIGH_BP always yields the same two clinical warnings; runs
+        # differ only by retry penalties.
         Spec(day=8, provider=P_OAI, status=RunStatus.needs_review, routing=RoutingDecision.human_review,
-             confidence=0.72, note=NOTE_HIGH_BP, reason="Blood pressure outside expected range; flagged for review.",
-             latency_ms=980, cost=0.00024, breakdown=_breakdown(0.72, severity=0.15, type_=0.13),
-             warnings=1, review=ReviewStatus.pending,
-             issues=[(IssueType.clinical, Severity.warning, "vitals.blood_pressure.systolic",
-                      "Systolic blood pressure above expected range (>140 mmHg).", "WARN_BP_HIGH")]),
+             note=NOTE_HIGH_BP, reason="Blood pressure outside expected range; confidence below auto-save threshold.",
+             latency_ms=980, cost=0.00024, breakdown=_breakdown(severity=0.08, type_=0.08),
+             warnings=2, review=ReviewStatus.pending,
+             issues=[WARN_BP_SYSTOLIC, WARN_BP_DIASTOLIC]),
         Spec(day=5, provider=P_OLL, status=RunStatus.needs_review, routing=RoutingDecision.human_review,
-             confidence=0.64, note=NOTE_MISSING_DOSE, reason="Missing medication dose; flagged for review.",
-             latency_ms=1550, cost=0.0, breakdown=_breakdown(0.64, severity=0.16, type_=0.2),
+             note=NOTE_MISSING_DOSE, reason="Missing medication dose; retry used; flagged for review.",
+             latency_ms=1550, cost=0.0, breakdown=_breakdown(severity=0.04, type_=0.03, retry=0.27),
              warnings=1, retries=1, review=ReviewStatus.pending,
-             issues=[(IssueType.completeness, Severity.warning, "medications.0.dose",
-                      "Medication dose not documented.", "WARN_MISSING_DOSE")]),
+             issues=[WARN_DOSE_MISSING]),
         Spec(day=2, provider=P_OAI, status=RunStatus.needs_review, routing=RoutingDecision.human_review,
-             confidence=0.68, note=NOTE_HIGH_BP, reason="Elevated blood pressure; confidence below auto-save threshold.",
-             latency_ms=940, cost=0.00023, breakdown=_breakdown(0.68, severity=0.15, type_=0.17),
-             warnings=1, review=ReviewStatus.pending,
-             issues=[(IssueType.clinical, Severity.warning, "vitals.blood_pressure.diastolic",
-                      "Diastolic blood pressure above expected range (>90 mmHg).", "WARN_BP_HIGH")]),
+             note=NOTE_HIGH_BP, reason="Elevated blood pressure; retry used; confidence below auto-save threshold.",
+             latency_ms=940, cost=0.00023, breakdown=_breakdown(severity=0.08, type_=0.08, retry=0.23),
+             warnings=2, retries=1, review=ReviewStatus.pending,
+             issues=[WARN_BP_SYSTOLIC, WARN_BP_DIASTOLIC]),
 
         # --- reviewed (human approved a flagged run) -----------------------
         Spec(day=6, provider=P_OAI, status=RunStatus.reviewed, routing=RoutingDecision.human_review,
-             confidence=0.7, note=NOTE_HIGH_BP, reason="Blood pressure outside expected range; flagged for review.",
-             latency_ms=960, cost=0.00024, breakdown=_breakdown(0.7, severity=0.15, type_=0.15),
-             warnings=1, review=ReviewStatus.approved,
+             note=NOTE_HIGH_BP, reason="Blood pressure outside expected range; confidence below auto-save threshold.",
+             latency_ms=960, cost=0.00024, breakdown=_breakdown(severity=0.08, type_=0.08),
+             warnings=2, review=ReviewStatus.approved,
              reviewer_notes="Confirmed elevated BP is known/managed for this patient. Documentation accepted.",
-             issues=[(IssueType.clinical, Severity.warning, "vitals.blood_pressure.systolic",
-                      "Systolic blood pressure above expected range (>140 mmHg).", "WARN_BP_HIGH")]),
+             issues=[WARN_BP_SYSTOLIC, WARN_BP_DIASTOLIC]),
         # edited approval: reviewer corrected the note before approving
         Spec(day=3, provider=P_OLL, status=RunStatus.reviewed, routing=RoutingDecision.human_review,
-             confidence=0.66, note=NOTE_MISSING_DOSE, reason="Missing medication dose; flagged for review.",
-             latency_ms=1580, cost=0.0, breakdown=_breakdown(0.66, severity=0.16, type_=0.18),
+             note=NOTE_MISSING_DOSE, reason="Missing medication dose; retry used; flagged for review.",
+             latency_ms=1580, cost=0.0, breakdown=_breakdown(severity=0.04, type_=0.03, retry=0.30),
              warnings=1, retries=1, review=ReviewStatus.approved,
              reviewer_notes="Dose verified against medication chart; corrected to 5mg before approval.",
              edited_output=NOTE_MISSING_DOSE_EDITED,
-             issues=[(IssueType.completeness, Severity.warning, "medications.0.dose",
-                      "Medication dose not documented.", "WARN_MISSING_DOSE")]),
+             issues=[WARN_DOSE_MISSING]),
 
-        # --- rejected (routed out automatically) ---------------------------
+        # --- rejected (routed out automatically; score must be < 0.50) -----
+        # NOTE_LOW_SPO2 always yields the same critical + completeness pair.
         Spec(day=9, provider=P_OAI, status=RunStatus.rejected, routing=RoutingDecision.reject,
-             confidence=0.34, note=NOTE_LOW_SPO2, reason="Critical clinical issue detected; routed out of auto-save.",
-             latency_ms=1010, cost=0.00025, breakdown=_breakdown(0.34, severity=0.5, type_=0.16),
-             warnings=0,
-             issues=[(IssueType.clinical, Severity.critical, "vitals.spo2.value",
-                      "Oxygen saturation critically low (<90%).", "ERR_SPO2_LOW")]),
+             note=NOTE_LOW_SPO2, reason="Critical clinical issue; confidence below reject threshold.",
+             latency_ms=1010, cost=0.00025, breakdown=_breakdown(severity=0.16, type_=0.07, retry=0.30),
+             warnings=1, retries=1,
+             issues=[CRIT_SPO2_LOW, WARN_ACTION_MISSING]),
         Spec(day=2, provider=P_OLL, status=RunStatus.rejected, routing=RoutingDecision.reject,
-             confidence=0.41, note=NOTE_LOW_SPO2, reason="Confidence below reject threshold.",
-             latency_ms=1620, cost=0.0, breakdown=_breakdown(0.41, severity=0.4, type_=0.19),
-             issues=[(IssueType.clinical, Severity.critical, "vitals.spo2.value",
-                      "Oxygen saturation critically low (<90%).", "ERR_SPO2_LOW")]),
+             note=NOTE_LOW_SPO2, reason="Critical clinical issue; confidence below reject threshold.",
+             latency_ms=1620, cost=0.0, breakdown=_breakdown(severity=0.16, type_=0.07, retry=0.30),
+             warnings=1, retries=1,
+             issues=[CRIT_SPO2_LOW, WARN_ACTION_MISSING]),
 
         # --- failed (extraction/parse failure, no structured note) ---------
         Spec(day=10, provider=P_OLL, status=RunStatus.failed, routing=RoutingDecision.reject,
-             confidence=None, note=None, reason="Extraction failed to produce valid JSON after one retry.",
+             note=None, reason="Extraction failed to produce valid JSON after one retry.",
              latency_ms=1730, cost=0.0, breakdown=None, retries=1,
-             issues=[(IssueType.format, Severity.critical, None,
-                      "Model response was not valid JSON.", "ERR_INVALID_JSON")]),
+             issues=[CRIT_INVALID_JSON]),
     ]
 
 
@@ -263,6 +330,19 @@ _TRANSCRIPTS = {
 
 def _make_run(spec: Spec, now: datetime) -> Run:
     created = now - timedelta(days=spec.day, hours=(spec.day % 5) + 1)
+    confidence = spec.breakdown["final_score"] if spec.breakdown is not None else None
+
+    # Guard: seeded scores must obey the real routing thresholds (routing.py),
+    # so the demo can never show a score/routing pair the engine would not produce.
+    if confidence is not None:
+        has_critical = any(sev is Severity.critical for _, sev, _, _, _ in spec.issues)
+        if spec.routing is RoutingDecision.auto_save:
+            assert confidence >= 0.85 and not has_critical, spec
+        elif spec.routing is RoutingDecision.reject:
+            assert confidence < 0.50, spec
+        else:
+            assert 0.50 <= confidence < 0.85 or has_critical, spec
+
     note = spec.note
     final = None
     if spec.status == RunStatus.auto_saved:
@@ -274,7 +354,7 @@ def _make_run(spec: Spec, now: datetime) -> Run:
     reasoning = build_reasoning_summary(
         succeeded=spec.status != RunStatus.failed,
         decision=spec.routing.value,
-        confidence=spec.confidence,
+        confidence=confidence,
         issues=[(sev.value, message, rule_id) for _, sev, _, message, rule_id in spec.issues],
     )
     run = Run(
@@ -283,7 +363,7 @@ def _make_run(spec: Spec, now: datetime) -> Run:
         status=spec.status,
         warnings_count=spec.warnings,
         retry_count=spec.retries,
-        confidence=spec.confidence,
+        confidence=confidence,
         latency_ms=spec.latency_ms,
         cost=spec.cost,
         raw_model_response=raw,

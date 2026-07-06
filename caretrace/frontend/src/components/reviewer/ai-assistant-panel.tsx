@@ -6,16 +6,16 @@ import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatConfidence } from "@/lib/format";
 import { useAssistantAnalysis } from "@/lib/hooks/use-assistant";
 import type { RunDetail } from "@/lib/api/types";
 
 /**
  * AI Reviewer Assistant (Phase 21): an advisory second read of the extracted
  * output. On demand it performs a deterministic differential + keyword analysis
- * and surfaces potential clinical risks, a synthetic confidence, and a
- * suggestion. It is strictly advisory — it never approves, rejects, or mutates
- * the run — and it is hidden once a run is decided (review is redundant then).
+ * and surfaces potential clinical risks and a suggestion. No confidence figure
+ * is displayed — only the pipeline's derived confidence is a scored signal.
+ * It is strictly advisory — it never approves, rejects, or mutates the run —
+ * and it is hidden once a run is decided (review is redundant then).
  */
 export function AiAssistantPanel({ run }: { run: RunDetail }) {
   const decided = run.status === "reviewed" || run.status === "rejected";
@@ -75,20 +75,12 @@ export function AiAssistantPanel({ run }: { run: RunDetail }) {
 
         {result ? (
           <div data-testid="assistant-result" className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <StatusBadge
-                tone={hasRisks ? "warning" : "success"}
-                icon={hasRisks ? AlertTriangle : ShieldCheck}
-              >
-                {hasRisks ? "Risk alert" : "Stable"}
-              </StatusBadge>
-              <span className="text-xs text-muted-foreground">
-                Assistant confidence{" "}
-                <span className="font-semibold tabular-nums text-foreground">
-                  {formatConfidence(result.confidence_score)}
-                </span>
-              </span>
-            </div>
+            <StatusBadge
+              tone={hasRisks ? "warning" : "success"}
+              icon={hasRisks ? AlertTriangle : ShieldCheck}
+            >
+              {hasRisks ? "Risk alert" : "Stable"}
+            </StatusBadge>
 
             {hasRisks ? (
               <div

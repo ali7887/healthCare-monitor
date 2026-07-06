@@ -302,9 +302,9 @@ function RunHeader({ run }: { run: RunDetailModel }) {
             Created {formatDateTime(run.created_at)}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Route</span>
           <RoutingBadge decision={run.routing_decision} />
-          <RunStatusBadge status={run.status} />
         </div>
       </CardContent>
     </Card>

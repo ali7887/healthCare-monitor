@@ -44,8 +44,10 @@ export function KpiStrip() {
         tone="neutral"
         loading={isLoading}
       />
+      {/* Labels match the RoutingBadge / donut / chart vocabulary exactly —
+          one routing term set across the whole dashboard. */}
       <StatCard
-        label="Auto-Saved"
+        label="Auto-save"
         value={data?.accepted_runs}
         hint={data ? `${percent(data.accepted_runs, total)}% pass rate` : undefined}
         icon={CheckCircle2}
@@ -53,7 +55,7 @@ export function KpiStrip() {
         loading={isLoading}
       />
       <StatCard
-        label="Needs Review"
+        label="Human review"
         value={data?.routed_to_human_runs}
         hint={data ? `${percent(data.routed_to_human_runs, total)}% of runs` : undefined}
         icon={AlertTriangle}
@@ -61,7 +63,7 @@ export function KpiStrip() {
         loading={isLoading}
       />
       <StatCard
-        label="Rejected"
+        label="Reject"
         value={data?.rejected_runs}
         hint={data ? `${percent(data.rejected_runs, total)}% of runs` : undefined}
         icon={XCircle}
