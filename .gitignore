@@ -2,3 +2,20 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Environment / secrets — only committed as *.example templates.
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.local.example
+!.env.production.example
+
+# Key material must never be committed.
+*.pem
+*.key
+
+# Local SQLite demo databases (regenerate with `uv run python -m app.seed_demo`)
+*.db
+*.sqlite
+*.sqlite3

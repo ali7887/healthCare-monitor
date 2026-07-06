@@ -1,0 +1,40 @@
+#!/bin/sh
+# Lightweight secret guard for healthCare-monitor (see SECURITY.md).
+# Enable once per clone:  git config core.hooksPath .githooks
+# Conscious bypass (placeholders, docs):  git commit --no-verify
+
+fail() {
+  echo "" >&2
+  echo "pre-commit BLOCKED: $1" >&2
+  echo "If this is intentional (e.g. an obvious placeholder), bypass with: git commit --no-verify" >&2
+  exit 1
+}
+
+# 1) Never commit env files or key material (only *.example templates pass).
+for f in $(git diff --cached --name-only --diff-filter=ACM); do
+  case "$f" in
+    *.example) continue ;;
+  esac
+  base=$(basename "$f")
+  case "$base" in
+    .env|.env.*) fail "env file staged: $f" ;;
+  esac
+  case "$f" in
+    *.pem|*.key) fail "key material staged: $f" ;;
+  esac
+done
+
+# 2) Scan staged additions for obvious credential patterns. Placeholder forms
+# (localhost, USER:PASS, user:pass, u:p, [PASSWORD]) used in docs/tests are
+# allowed through.
+matches=$(git diff --cached -U0 --diff-filter=ACM \
+  | grep -E '^\+' | grep -Ev '^\+\+\+' \
+  | grep -E 'postgres(ql)?(\+[a-z0-9]+)?://[^ :@"]+:[^ @"]+@|sk-[A-Za-z0-9]{20,}|npg_[A-Za-z0-9]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN( [A-Z]+)? PRIVATE KEY' \
+  | grep -viE 'localhost|USER:PASS|user:pass|u:p@|\[PASSWORD\]|<[^>]*>' )
+
+if [ -n "$matches" ]; then
+  echo "$matches" >&2
+  fail "staged changes appear to contain credentials (matches above)"
+fi
+
+exit 0

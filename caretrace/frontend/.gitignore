@@ -4,7 +4,11 @@
 /build
 *.tsbuildinfo
 next-env.d.ts
-.env*.local
+# Environment / secrets — only committed as *.example templates.
+.env
+.env.*
+!.env.local.example
+!.env.production.example
 .DS_Store
 npm-debug.log*
 
