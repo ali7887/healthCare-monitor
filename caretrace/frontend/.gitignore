@@ -12,3 +12,6 @@ npm-debug.log*
 /playwright-report/
 /test-results/
 /playwright/.cache/
+__pycache__/
+*.py[cod]
+*$py.class
