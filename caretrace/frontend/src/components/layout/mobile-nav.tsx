@@ -5,14 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { NAV_ITEMS } from "@/components/layout/nav";
+import { isNavActive, NAV_ITEMS } from "@/components/layout/nav";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/dashboard") return pathname === "/dashboard";
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
 
 export function MobileNav() {
   const pathname = usePathname();
@@ -57,7 +52,7 @@ export function MobileNav() {
             </div>
             <nav className="flex-1 space-y-1 p-3">
               {NAV_ITEMS.map((item) => {
-                const active = isActive(pathname, item.href);
+                const active = isNavActive(pathname, item.href);
                 const Icon = item.icon;
                 return (
                   <Link

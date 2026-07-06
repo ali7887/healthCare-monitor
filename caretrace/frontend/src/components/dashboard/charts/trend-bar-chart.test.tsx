@@ -16,7 +16,7 @@ vi.mock("recharts", async (importOriginal) => {
   };
 });
 
-import { TrendAreaChart } from "@/components/dashboard/charts/trend-area-chart";
+import { TrendBarChart } from "@/components/dashboard/charts/trend-bar-chart";
 import type { TimeseriesPoint } from "@/lib/api/types";
 
 function point(bucket: string, over: Partial<TimeseriesPoint> = {}): TimeseriesPoint {
@@ -26,26 +26,26 @@ function point(bucket: string, over: Partial<TimeseriesPoint> = {}): TimeseriesP
   return merged;
 }
 
-describe("TrendAreaChart", () => {
+describe("TrendBarChart", () => {
   it("mounts an SVG for a populated series", () => {
     const points = [
       point("2026-07-01", { auto_save: 3, reject: 1 }),
       point("2026-07-02", { human_review: 2 }),
       point("2026-07-03", { auto_save: 5 }),
     ];
-    const { container } = render(<TrendAreaChart points={points} />);
+    const { container } = render(<TrendBarChart points={points} />);
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("renders one stacked area per routing series", () => {
+  it("renders one stacked bar series per routing outcome", () => {
     const points = [point("2026-07-01", { auto_save: 1, human_review: 1, reject: 1 })];
-    const { container } = render(<TrendAreaChart points={points} />);
-    // Recharts tags each <Area> layer with the recharts-area class.
-    expect(container.querySelectorAll(".recharts-area").length).toBe(3);
+    const { container } = render(<TrendBarChart points={points} />);
+    // Recharts tags each <Bar> layer with the recharts-bar class.
+    expect(container.querySelectorAll(".recharts-bar").length).toBe(3);
   });
 
   it("does not crash on an empty series (zero-run window)", () => {
-    const { container } = render(<TrendAreaChart points={[]} />);
+    const { container } = render(<TrendBarChart points={[]} />);
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 });

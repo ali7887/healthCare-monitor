@@ -11,11 +11,13 @@ import { useRuns } from "@/lib/hooks/use-runs";
 import { formatConfidence, formatRelative, shortId } from "@/lib/format";
 
 export function RecentRuns() {
-  const { data, isLoading, isError, refetch } = useRuns({ limit: 6 });
+  // Eight rows keeps the card roughly level with the routing donut beside it,
+  // instead of leaving a band of empty page under the shorter column.
+  const { data, isLoading, isError, refetch } = useRuns({ limit: 8 });
   const items = data?.items ?? [];
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">Recent runs</CardTitle>
         <Link
@@ -33,7 +35,7 @@ export function RecentRuns() {
           />
         ) : isLoading ? (
           <div className="space-y-1 p-3">
-            {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: 8 }).map((_, i) => (
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>

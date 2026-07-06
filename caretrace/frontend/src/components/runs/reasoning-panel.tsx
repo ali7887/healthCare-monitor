@@ -26,7 +26,7 @@ function ConfidenceMeter({ score }: { score: number | null }) {
     return (
       <div data-testid="confidence-meter" className="space-y-1.5">
         <div className="flex items-center justify-between text-sm">
-          <span className="font-medium text-foreground">AI confidence</span>
+          <span className="font-medium text-foreground">Derived confidence</span>
           <span className="tabular-nums text-muted-foreground">n/a</span>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -40,7 +40,7 @@ function ConfidenceMeter({ score }: { score: number | null }) {
   return (
     <div data-testid="confidence-meter" className="space-y-1.5">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-foreground">AI confidence</span>
+        <span className="font-medium text-foreground">Derived confidence</span>
         <span className="tabular-nums font-semibold" style={{ color: meta.color }}>
           {formatConfidence(score)}
         </span>
@@ -51,7 +51,7 @@ function ConfidenceMeter({ score }: { score: number | null }) {
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="AI confidence"
+        aria-label="Derived confidence"
       >
         <div
           className="h-full rounded-full transition-all"
@@ -135,7 +135,9 @@ function ReasoningSteps({ summary }: { summary: string | null }) {
 
 /**
  * Reasoning Explanation panel (Phase 20): visually demystifies *why* a run was
- * routed the way it was — the AI confidence meter, the clinical policy
+ * routed the way it was — the derived-confidence meter ("derived" because the
+ * score is computed deterministically from penalties, never self-reported by
+ * the model), the clinical policy
  * violations that fired, and the step-by-step decision path. For a decided run
  * it also shows the operator's notes as a read-only audit trail (the editable
  * notes field for a pending run lives in the review workspace).

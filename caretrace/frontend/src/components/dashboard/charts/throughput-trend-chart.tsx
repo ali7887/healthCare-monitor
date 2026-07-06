@@ -10,14 +10,14 @@ import { useDashboardTimeseries } from "@/lib/hooks/use-dashboard-timeseries";
 
 // Recharts is the heaviest client module; load it on demand so it stays out of
 // the initial dashboard bundle. The container's skeleton covers the brief load.
-const TrendAreaChart = dynamic(
+const TrendBarChart = dynamic(
   () =>
-    import("@/components/dashboard/charts/trend-area-chart").then(
-      (m) => m.TrendAreaChart
+    import("@/components/dashboard/charts/trend-bar-chart").then(
+      (m) => m.TrendBarChart
     ),
   {
     ssr: false,
-    loading: () => <div className="h-64 w-full animate-pulse rounded-md bg-muted" />,
+    loading: () => <div className="h-72 w-full animate-pulse rounded-md bg-muted" />,
   }
 );
 
@@ -52,7 +52,7 @@ export function ThroughputTrendChart() {
       emptyDescription="Processed runs will chart here as they arrive."
     >
       <div className="space-y-5">
-        <TrendAreaChart points={points} />
+        <TrendBarChart points={points} />
         <ChartLegend items={legend} />
       </div>
     </ChartCard>

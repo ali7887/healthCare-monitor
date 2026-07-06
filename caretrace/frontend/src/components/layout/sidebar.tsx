@@ -4,13 +4,8 @@ import { Activity, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { NAV_ITEMS } from "@/components/layout/nav";
+import { isNavActive, NAV_ITEMS } from "@/components/layout/nav";
 import { cn } from "@/lib/utils";
-
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/dashboard") return pathname === "/dashboard";
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -34,7 +29,7 @@ export function Sidebar() {
 
       <nav className="flex-1 space-y-1 px-3">
         {NAV_ITEMS.map((item) => {
-          const active = isActive(pathname, item.href);
+          const active = isNavActive(pathname, item.href);
           const Icon = item.icon;
           return (
             <Link

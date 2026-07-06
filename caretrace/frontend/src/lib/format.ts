@@ -17,10 +17,31 @@ export function formatCost(value: number | null | undefined): string {
 
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
+  // Day-first, 24-hour, with an explicit timezone label (e.g. "06 Jul 2026,
+  // 14:32 CEST") — unambiguous for European readers and auditable in demos.
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
   });
+}
+
+// Brand casing can't be derived from the enum value ("openai" → "OpenAI"), so
+// known providers are mapped explicitly; unknown ones fall back to capitalized.
+const PROVIDER_LABELS: Record<string, string> = {
+  openai: "OpenAI",
+  ollama: "Ollama",
+};
+
+export function formatProvider(provider: string | null | undefined): string {
+  if (!provider) return "—";
+  return (
+    PROVIDER_LABELS[provider.toLowerCase()] ??
+    provider.charAt(0).toUpperCase() + provider.slice(1)
+  );
 }
 
 export function formatRelative(iso: string | null | undefined): string {

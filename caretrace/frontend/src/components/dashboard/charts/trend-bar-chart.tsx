@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  Area,
-  AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -17,9 +17,10 @@ const AXIS_COLOR = "#94a3b8"; // slate-400 — legible in light and dark
 const GRID_COLOR = "rgba(148, 163, 184, 0.18)";
 
 function formatBucket(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
-    month: "short",
+  // Day-first short date ("6 Jul") for European readers.
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", {
     day: "numeric",
+    month: "short",
   });
 }
 
@@ -55,14 +56,20 @@ function TrendTooltip({
   );
 }
 
-/** Presentational stacked-area trend. Callers supply the time-series points. */
-export function TrendAreaChart({ points }: { points: TimeseriesPoint[] }) {
+/**
+ * Presentational stacked-bar trend. Callers supply the time-series points.
+ * Bars, not interpolated areas: the series is discrete daily counts, so a
+ * smooth curve would suggest values between days that never existed, and the
+ * translucent stacked-area fills blended muddily on dark surfaces. Solid bar
+ * fills render identically in both themes.
+ */
+export function TrendBarChart({ points }: { points: TimeseriesPoint[] }) {
   const data = points.map((point) => ({ ...point, label: formatBucket(point.bucket) }));
 
   return (
-    <div className="h-64 w-full">
+    <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+        <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke={GRID_COLOR} />
           <XAxis
             dataKey="label"
@@ -78,21 +85,18 @@ export function TrendAreaChart({ points }: { points: TimeseriesPoint[] }) {
             tickLine={false}
             axisLine={false}
           />
-          <Tooltip content={<TrendTooltip />} cursor={{ stroke: GRID_COLOR }} />
+          <Tooltip content={<TrendTooltip />} cursor={{ fill: GRID_COLOR }} />
           {ROUTING_SERIES.map((series) => (
-            <Area
+            <Bar
               key={series.key}
-              type="monotone"
               dataKey={series.key}
               name={series.label}
               stackId="runs"
-              stroke={series.color}
               fill={series.color}
-              fillOpacity={0.18}
-              strokeWidth={2}
+              maxBarSize={28}
             />
           ))}
-        </AreaChart>
+        </BarChart>
       </ResponsiveContainer>
     </div>
   );

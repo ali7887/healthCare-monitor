@@ -21,6 +21,7 @@ import {
   formatCost,
   formatDateTime,
   formatLatency,
+  formatProvider,
 } from "@/lib/format";
 import { useRun } from "@/lib/hooks/use-run";
 
@@ -419,7 +420,7 @@ function MetadataPanel({ run }: { run: RunDetailModel }) {
       </CardHeader>
       <CardContent>
         <dl className="grid grid-cols-2 gap-4">
-          <Field label="Provider" value={<span className="capitalize">{run.provider}</span>} />
+          <Field label="Provider" value={formatProvider(run.provider)} />
           <Field label="Latency" value={formatLatency(run.latency_ms)} />
           <Field label="Est. cost" value={formatCost(run.cost)} />
           <Field label="Retries" value={run.retry_count} />

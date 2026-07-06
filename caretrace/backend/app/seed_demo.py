@@ -323,8 +323,75 @@ def _specs() -> list[Spec]:
     ]
 
 
-_TRANSCRIPTS = {
-    "en": "Nursing shift note dictated by caregiver; see structured extraction for details.",
+# --- verbatim caregiver dictations --------------------------------------------
+# One transcript per note constant, keyed by object identity (the notes are
+# module-level constants, so identity is stable). Each transcript mentions
+# exactly what its note extracts — and *omits* what the completeness warnings
+# flag — so transcript, extraction, and validation always tell the same story.
+
+_TRANSCRIPT_STABLE = (
+    "Shift note for Anna Keller, 74 years old. Blood pressure this morning 128 over 82, "
+    "heart rate 76, oxygen saturation 98 percent. Metformin 500 milligrams given by mouth "
+    "as scheduled. She is resting comfortably and reports no acute distress. "
+    "Continuing routine monitoring."
+)
+_TRANSCRIPT_STABLE_PARTIAL = (
+    "Shift note for Anna Keller, 74 years old. Blood pressure this morning 128 over 82, "
+    "heart rate 76. Metformin 500 milligrams given by mouth as scheduled. She is resting "
+    "comfortably and reports no acute distress. Continuing routine monitoring."
+)
+_TRANSCRIPT_STABLE_MINIMAL = (
+    "Quick note for Anna Keller. Blood pressure 128 over 82, heart rate 76. Metformin "
+    "500 milligrams given by mouth as scheduled. Resting comfortably, no acute distress. "
+    "Continuing routine monitoring."
+)
+_TRANSCRIPT_HYDRATION = (
+    "Note for Thomas Berg, 68 years old. Blood pressure 134 over 84, temperature 36.8, "
+    "oxygen saturation 97 percent. He mentions mild dizziness when standing up. Fluid "
+    "intake looks adequate today. I advised him to keep drinking regularly and we will "
+    "continue routine monitoring."
+)
+_TRANSCRIPT_HYDRATION_PARTIAL = (
+    "Note for Thomas Berg, 68 years old. Blood pressure 134 over 84, temperature 36.8. "
+    "He mentions mild dizziness when standing up. Fluid intake looks adequate today. "
+    "I advised him to keep drinking regularly and we will continue routine monitoring."
+)
+_TRANSCRIPT_HYDRATION_MINIMAL = (
+    "Note for Thomas Berg. Blood pressure 134 over 84, temperature 36.8. He mentions "
+    "mild dizziness when standing up. Fluid intake looks adequate. Advised him to keep "
+    "drinking regularly, continuing routine monitoring."
+)
+_TRANSCRIPT_HIGH_BP = (
+    "Renate Fuchs, 81 years old. Blood pressure this shift 172 over 101, pulse 92, "
+    "oxygen saturation 96 percent. She complains of a headache. That blood pressure is "
+    "well above her usual range, so I escalated to the supervising nurse for a recheck."
+)
+_TRANSCRIPT_MISSING_DOSE = (
+    "Jonas Wolf, 59 years old. Oxygen saturation 97 percent. I gave him his Amlodipine "
+    "by mouth this morning — I don't have the dose in front of me right now, it should "
+    "be on the chart. Otherwise nothing new to report."
+)
+_TRANSCRIPT_LOW_SPO2 = (
+    "Ingrid Sommer, 88 years old. Oxygen saturation is reading 89 percent and she says "
+    "she is short of breath. That saturation is below where we expect her to be."
+)
+# The failed run's input: a dictation the recorder mangled, so extraction never
+# produced valid JSON.
+_TRANSCRIPT_GARBLED = (
+    "Evening note for — [audio cuts out] — vitals were — [inaudible] — sorry, the "
+    "recorder keeps dropping. I will redo this note at the end of the round."
+)
+
+_TRANSCRIPTS: dict[int, str] = {
+    id(NOTE_STABLE): _TRANSCRIPT_STABLE,
+    id(NOTE_STABLE_PARTIAL): _TRANSCRIPT_STABLE_PARTIAL,
+    id(NOTE_STABLE_MINIMAL): _TRANSCRIPT_STABLE_MINIMAL,
+    id(NOTE_HYDRATION): _TRANSCRIPT_HYDRATION,
+    id(NOTE_HYDRATION_PARTIAL): _TRANSCRIPT_HYDRATION_PARTIAL,
+    id(NOTE_HYDRATION_MINIMAL): _TRANSCRIPT_HYDRATION_MINIMAL,
+    id(NOTE_HIGH_BP): _TRANSCRIPT_HIGH_BP,
+    id(NOTE_MISSING_DOSE): _TRANSCRIPT_MISSING_DOSE,
+    id(NOTE_LOW_SPO2): _TRANSCRIPT_LOW_SPO2,
 }
 
 
@@ -358,7 +425,7 @@ def _make_run(spec: Spec, now: datetime) -> Run:
         issues=[(sev.value, message, rule_id) for _, sev, _, message, rule_id in spec.issues],
     )
     run = Run(
-        transcript=_TRANSCRIPTS["en"],
+        transcript=_TRANSCRIPTS[id(note)] if note is not None else _TRANSCRIPT_GARBLED,
         provider=spec.provider,
         status=spec.status,
         warnings_count=spec.warnings,

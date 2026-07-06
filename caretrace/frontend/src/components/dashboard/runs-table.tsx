@@ -13,6 +13,7 @@ import { useRuns } from "@/lib/hooks/use-runs";
 import {
   formatConfidence,
   formatLatency,
+  formatProvider,
   formatRelative,
   shortId,
 } from "@/lib/format";
@@ -108,8 +109,8 @@ export function RunsTable() {
                         <td className="px-4 py-3 font-mono text-xs">
                           {shortId(run.id)}
                         </td>
-                        <td className="px-4 py-3 capitalize text-muted-foreground">
-                          {run.provider}
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {formatProvider(run.provider)}
                         </td>
                         <td className="px-4 py-3">
                           <RoutingBadge decision={run.routing_decision} />
