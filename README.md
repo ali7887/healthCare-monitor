@@ -1,224 +1,132 @@
-# healthCare-monitor
+# healthCare-monitor (CareTrace)
 
-**Reliable handling of AI-generated clinical documentation — with deterministic validation, full traceability, and human review.**
+**Reliable handling of AI-generated clinical documentation — structured extraction, deterministic validation, full traceability, and human review.**
 
-healthCare-monitor turns unstructured nursing/caregiver transcripts into structured clinical notes, then treats the model's output as *untrusted* until it has passed deterministic checks. Every run is scored, routed, and stored as a complete audit trace. Low-confidence or clinically inconsistent outputs are flagged for a human instead of being silently saved.
+[![Backend](https://img.shields.io/badge/backend-FastAPI%20%C2%B7%20Python%203.13-009688)](caretrace/backend)
+[![Frontend](https://img.shields.io/badge/frontend-Next.js%2015%20%C2%B7%20TypeScript-111111)](caretrace/frontend)
+[![Tests](https://img.shields.io/badge/tests-119%20backend%20%C2%B7%2044%20frontend-10b981)](docs/TESTING.md)
+[![Database](https://img.shields.io/badge/database-Postgres%20%2F%20SQLite-336791)](docs/DEPLOYMENT.md)
 
-> This is a robust, demo-ready MVP built to showcase reliability engineering around LLM output — not a certified medical device. It does **not** diagnose, prescribe, or recommend treatment; it structures documentation and surfaces *potential inconsistencies* for human review.
+CareTrace turns unstructured nursing/caregiver transcripts into structured clinical notes, then treats the model's output as **untrusted until proven otherwise**: every extraction passes deterministic schema and clinical-rule validation, receives a locally derived confidence score, and is either auto-saved or **flagged for human review**. Every run is stored as a complete, auditable trace.
 
-**Live demo:** _`<set your Vercel URL>`_ · **API:** _`<set your Render/Railway URL>`/api_ · **One-page overview:** [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md)
-
-<!-- After the first deploy, fill the URLs above (see docs/DEPLOY_PRODUCTION_*.md) and optionally add a CI badge:
-[![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml) -->
-
----
-
-## Features
-
-- **Structured extraction** of clinical documentation from free-text transcripts (provider abstraction over OpenAI GPT-4o-mini or local Ollama).
-- **Deterministic schema + clinical validation** with a bounded single retry — the reliability logic is pure, local, and unit-tested.
-- **Locally derived confidence** (never asked of the model) with a persisted, explainable penalty breakdown.
-- **Automatic routing** to auto-save / human review / reject, with an operational dashboard: KPI strip, routing donut, and per-day throughput trend.
-- **Trace viewer** exposing transcript, raw vs parsed vs final output, validation issues, and the confidence breakdown for every run.
-- **Reasoning panel** — a deterministic, color-coded explanation (confidence meter, policy violations, decision path, reviewer-notes audit); the model never narrates itself.
-- **AI reviewer assistant** — an advisory, deterministic second read of an edit (content + diff risks, `stable`/`risk_alert`); never auto-decides.
-- **Human-in-the-loop review** — approve/reject with optional edit-before-approve that preserves the original model output; decisions are immutable (409 guard).
-- **Local-first observability** — per-request `X-Request-ID` correlation, structured JSON logs, safe telemetry, and a dev-only observability panel.
-- **Production-ready** — environment modes (`dev`/`demo`/`production`), `/health` + `/ready` probes, Postgres-ready models, and one-command deploy guides for Vercel + Render/Railway.
+> **Scope disclaimer** — this is a reliability-engineering MVP, not a certified medical device. It does **not** diagnose, prescribe, or recommend treatment. It performs structured documentation extraction and surfaces *potential inconsistencies* for human review.
 
 ---
 
-## Why this project is interesting
+## Live demo
 
-Naive "call the LLM and store the JSON" pipelines fail exactly where healthcare can't afford it: malformed output, missing fields, clinically implausible values, and no way to explain *why* a result was trusted. This project is a study in making an LLM feature **operationally credible**:
+| Surface | URL |
+|---|---|
+| Dashboard (frontend) | <https://health-care-monitor-steel.vercel.app> |
+| API (backend) | <https://caretrace-backend.vercel.app/api/health> |
 
-- **Deterministic validation over model self-trust.** The model is never asked how confident it is. Confidence is *derived locally* from concrete validation outcomes.
-- **Traceability by default.** Every run persists its raw response, parsed output, validation issues, routing decision, and the confidence breakdown that produced it.
-- **Human-in-the-loop as a first-class path**, including *edited approvals* where a reviewer's correction is stored without ever overwriting the original model output.
-- **Tested and hardened**: 117 backend tests + 41 frontend tests, per-widget error boundaries, an immutable-decision conflict guard, a lazy-loaded chart layer, and a thin local-first observability layer (request correlation ids, structured logs, telemetry).
+![Dashboard overview](docs/screenshots/01-dashboard-overview.png)
 
-See [`docs/ENGINEERING_DECISIONS.md`](docs/ENGINEERING_DECISIONS.md) for the tradeoffs behind each of these.
+More captures: [`docs/screenshots/`](docs/screenshots/) · guided walkthrough: [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md)
 
 ---
 
-## What it does — the processing flow
+## Why this exists
+
+Naive "call the model, store the JSON" pipelines fail exactly where healthcare cannot afford it: malformed output, missing fields, clinically implausible values, and no way to explain *why* a result was trusted. CareTrace demonstrates the engineering discipline that makes an LLM feature operationally credible:
+
+- **Deterministic validation over model self-trust.** The model is never asked how confident it is. Confidence is derived locally from concrete validation outcomes and persisted as an auditable penalty breakdown that always sums to the final score.
+- **Traceability by default.** Each run stores its transcript, raw model response, parsed output, validation issues, routing decision, confidence breakdown, and a step-by-step reasoning summary.
+- **Human review as a first-class path** — including *edited approvals*, where a reviewer's correction is stored alongside (never over) the original extraction.
+- **Advisory AI second read.** A deterministic reviewer assistant flags potential clinical risks for the operator; it never approves, rejects, or mutates a run.
+- **Local-first observability.** Request-correlation IDs, structured JSON logs, and an in-app telemetry panel tie any UI action to the exact backend log line.
+
+## Processing flow
 
 ```
-transcript
-   │
-   ▼
-1. AI extraction (OpenAI GPT-4o-mini or local Ollama)   ── provider abstraction
-2. schema validation           (Pydantic v2)
-3. clinical validation         (deterministic rule engine, local)
-4. retry once if validation failed  (bounded self-correction)
-5. derived confidence score    (base 1.0 − capped penalties, clamped [0,1])
-6. routing decision:
-       ≥ 0.85 & no critical issue  → auto-save
-       0.50–0.84 or any critical   → human review
-       < 0.50                      → reject
-7. persist the complete trace (run + issues + review item)
-   │
-   ▼
-dashboard · runs table · trace viewer · review queue
+transcript ──▶ extract structured note ──▶ schema validation ──▶ clinical rules
+                                                │ (retry once on failure)
+                                                ▼
+                                     derived confidence score
+                                                │
+              ┌─────────────────────────────────┼──────────────────────┐
+              ▼                                 ▼                      ▼
+        auto-save (≥ 0.85,            human review queue         reject (< 0.50)
+        no critical issues)         (0.50–0.85 or criticals)
 ```
 
-Statuses: `auto_saved` · `needs_review` · `reviewed` · `rejected` · `failed`.
+Every path — including failures — persists a complete trace. Run statuses: `auto_saved`, `needs_review`, `reviewed`, `rejected`, `failed`.
 
----
+## Repository layout
 
-## Stack
+```
+caretrace/
+  backend/      FastAPI · Pydantic v2 · SQLAlchemy · Alembic · provider abstraction
+  frontend/     Next.js 15 · TypeScript · Tailwind · shadcn/ui · TanStack Query
+docs/           PRD, API reference, architecture, deployment & demo runbooks
+prompts/        versioned extraction prompts
+examples/       sample transcripts and outputs
+```
 
-| Layer | Technology |
-|------|------------|
-| Frontend | Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, shadcn-style UI, TanStack Query v5, Recharts (lazy-loaded) |
-| Backend | FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic |
-| Database | SQLite by default (zero-infra demo); Postgres-ready (dialect-portable models) |
-| AI orchestration | Provider abstraction over OpenAI GPT-4o-mini and local Ollama (Qwen2.5), versioned file-based prompts |
-| Tooling | `uv` (Python), pytest, Vitest + React Testing Library |
+## Quickstart (local demo)
 
----
+No API key and no external database are required — the backend defaults to a local SQLite file, and the seeded dataset drives the entire dashboard.
 
-## Architecture at a glance
-
-- **Pure compute core, persistence at the edge.** The pipeline, validation, confidence, and routing services are pure functions with no ORM imports; persistence happens only at the API boundary. This keeps the reliability logic unit-testable and free of database/import cycles.
-- **Stable typed contracts.** Backend Pydantic read-models map 1:1 to frontend TypeScript types (e.g. `RunDetail`, `DashboardStats`, `DashboardTimeseries`).
-- **Portable persistence.** Enums are stored as `VARCHAR + CHECK` (not native Postgres enums), UUID/JSON use generic types, and timestamps use Python-side defaults — so the exact same models run on SQLite and Postgres.
-- **Observable dashboard.** KPI strip, routing-distribution donut, and a real per-day throughput trend, all sharing one `ROUTING_SERIES` config so the donut and trend can never drift out of alignment.
-- **Local-first observability.** Every API request gets a correlation id (`X-Request-ID`, generated or preserved), timed, and logged as one structured JSON line; the critical review/assistant/dashboard flows emit safe, structured telemetry (ids/statuses/counts — never clinical text). The frontend mirrors this into an in-memory telemetry store and a dev-only observability panel that ties a UI action back to the exact backend log. No external telemetry vendor, collector, or agent. See [`docs/ENGINEERING_DECISIONS.md`](docs/ENGINEERING_DECISIONS.md#11-observability-is-thin-local-first-and-privacy-safe).
-
-More detail: [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`docs/AI_PIPELINE.md`](docs/AI_PIPELINE.md) · [`docs/API.md`](docs/API.md).
-
----
-
-## Run it locally
-
-From a clean checkout you can be looking at a populated dashboard in a few minutes — **no Docker, no Postgres, no API key required** (the seeded demo needs none of them).
-
-**Prerequisites:** Node.js 18+, Python 3.11+, and [`uv`](https://docs.astral.sh/uv/).
-
-### 1. Backend (terminal 1)
+**Backend** (Python 3.13, [uv](https://docs.astral.sh/uv/)):
 
 ```bash
 cd caretrace/backend
-cp .env.example .env            # optional — defaults work out of the box
-uv sync                         # install dependencies
-uv run python -m app.seed_demo  # create tables + load the demo dataset
+cp .env.example .env                 # defaults are fine for a local demo
+uv sync
+uv run python -m app.seed_demo       # seed 19 demo runs
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
-Health check: <http://localhost:8000/api/health> → `{"status":"ok","service":"healthCare-monitor-backend"}`
-
-### 2. Frontend (terminal 2)
+**Frontend** (Node 20+):
 
 ```bash
 cd caretrace/frontend
-cp .env.local.example .env.local   # points at http://localhost:8000/api
+cp .env.local.example .env.local     # points at http://localhost:8000/api
 npm install
-npm run dev
+npm run dev                          # http://localhost:3000
 ```
 
-Open <http://localhost:3000/dashboard>.
+To process live transcripts (optional), set `OPENAI_API_KEY` in the backend `.env`, or point `OLLAMA_BASE_URL` at a local Ollama instance.
 
-> **SQLite is the default.** Tables auto-create on backend startup and `seed_demo` fills them with a realistic distribution across every routing path. To use Postgres instead, set `DATABASE_URL` and run `uv run alembic upgrade head`.
->
-> **Live extraction** (processing your own transcript instead of the seeded data) needs an `OPENAI_API_KEY`, or a running Ollama with `qwen2.5`. Sample transcripts live in [`examples/`](examples/).
+**Production-like setup:** use Postgres (`DATABASE_URL=postgresql+psycopg://…`) with Alembic migrations (`uv run alembic upgrade head`). See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) and [`docs/GO_LIVE_VERCEL.md`](docs/GO_LIVE_VERCEL.md).
 
----
-
-## Test
+## Testing
 
 ```bash
-# Backend — 117 tests
-cd caretrace/backend && uv run pytest
-
-# Frontend — 41 tests, types, and production build
-cd caretrace/frontend
-npm run test          # Vitest + React Testing Library
-npx tsc --noEmit      # type check
-npm run build         # production build
+cd caretrace/backend  && uv run pytest        # 119 tests
+cd caretrace/frontend && npm test -- --run    # 44 tests
 ```
 
-Testing priorities and coverage map: [`docs/TESTING.md`](docs/TESTING.md) and [`docs/QA_CHECKLIST.md`](docs/QA_CHECKLIST.md).
+Test priorities mirror the product's reliability goals: schema validation, clinical rules, retry behavior, confidence scoring, and routing decisions. Details in [`docs/TESTING.md`](docs/TESTING.md).
 
-Browser E2E + screenshots (Playwright):
+## API overview
 
-```bash
-cd caretrace/frontend
-npm run test:e2e      # demo-path + secondary flows (starts its own seeded backend)
-npm run e2e:screens   # regenerate docs/screenshots/ from seeded data
-```
+Base path `/api` — stable, versionless contract documented in [`docs/API.md`](docs/API.md).
 
----
-
-## Continuous integration
-
-A single GitHub Actions workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
-enforces the quality gates on every push and pull request, running the **same
-commands** used locally — no Docker, no hosted database (the backend uses the
-isolated, self-seeding SQLite workflow).
-
-| Job | What it runs | Blocking |
-|-----|--------------|----------|
-| **Frontend** | `npm run ci:frontend` → type-check + Vitest unit tests + production build | ✅ |
-| **Backend** | `uv run pytest` | ✅ |
-| **E2E** | `npm run ci:e2e` — Playwright drives an isolated seeded backend + production frontend (runs only after the fast gates pass) | ✅ |
-| **Screenshots** | `npm run e2e:screens`, uploaded as an artifact (main / manual only, to keep PRs fast) | ⬜ non-blocking |
-
-- **Run the same checks locally:** `npm run ci:frontend`, `uv run pytest`, `npm run test:e2e`.
-- **Browser caveat:** CI installs the real Chrome channel (`npx playwright install --with-deps chrome`), matching the local `channel: "chrome"` config (chosen because the Playwright browser CDN is geo-blocked on the primary dev machine).
-- **Artifacts:** the Playwright HTML report (always) and failure traces (on failure) are uploaded per run; the screenshots job publishes the demo PNGs. Retention is 7–14 days.
-
----
-
-## Demo walkthrough
-
-A full script — happy path, review/approve/reject, edited approval, reading the dashboard, and recovery steps — is in [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md). The short version:
-
-1. **Dashboard** — KPI strip + routing donut + throughput trend, populated by the seed.
-2. **Runs table** — filter by routing decision; open any run.
-3. **Trace viewer** — inspect a run's transcript, structured output, validation issues, and confidence breakdown.
-4. **Review queue** — open a `needs_review` run, optionally **edit** the output, then approve or reject; watch the dashboard update via cache invalidation.
-
-Reset to a clean demo state at any time:
-
-```bash
-cd caretrace/backend && uv run python -m app.seed_demo
-```
-
----
-
-## Deploy
-
-CareTrace deploys as a **Next.js app on Vercel** pointed at a **FastAPI backend on
-Render/Railway** — no Docker, no Kubernetes, and Postgres is optional (SQLite is a
-valid demo default). The backend exposes `/api/health` (liveness + DB) and
-`/api/ready` (DB + schema) for the host's health checks, and reads its mode from
-`CARETRACE_ENV` (`dev` / `demo` / `production`).
-
-- **Frontend → Vercel:** [`docs/DEPLOY_PRODUCTION_FRONTEND.md`](docs/DEPLOY_PRODUCTION_FRONTEND.md)
-- **Backend → Render/Railway:** [`docs/DEPLOY_PRODUCTION_BACKEND.md`](docs/DEPLOY_PRODUCTION_BACKEND.md)
-- **Product overview (screenshots + diagrams):** [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md)
-
-A **manual** `deploy` job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
-(triggered via *Run workflow*, never on push) can deploy after all gates pass,
-given the documented repository secrets.
-
----
-
-## Scope
-
-Intentionally excluded to keep the MVP focused: authentication, RBAC, multi-tenancy, voice/audio streaming, RAG / vector search, real EHR integration, notifications, realtime collaboration, billing, and any diagnosis/treatment functionality.
+| Area | Endpoints |
+|---|---|
+| Health | `GET /health`, `GET /ready` |
+| Processing | `POST /process` |
+| Runs & traces | `GET /runs`, `GET /runs/{id}`, `GET /runs/{id}/trace` |
+| Review queue | `GET /review`, `POST /review/{id}/approve` · `/edit` · `/reject` |
+| Evaluation | `GET /evaluation` |
 
 ## Documentation
 
-- [`CLAUDE.md`](CLAUDE.md) — project constraints and working rules
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — components, pipeline, entities
-- [`DECISIONS.md`](DECISIONS.md) · [`docs/ENGINEERING_DECISIONS.md`](docs/ENGINEERING_DECISIONS.md) — design rationale
-- [`docs/API.md`](docs/API.md) — HTTP contracts
-- [`docs/AI_PIPELINE.md`](docs/AI_PIPELINE.md) — end-to-end processing pipeline
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — local/demo setup
-- [`docs/DEPLOY_PRODUCTION_FRONTEND.md`](docs/DEPLOY_PRODUCTION_FRONTEND.md) · [`docs/DEPLOY_PRODUCTION_BACKEND.md`](docs/DEPLOY_PRODUCTION_BACKEND.md) — production deploy (Vercel + Render/Railway)
-- [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md) — one-page product overview with screenshots and diagrams
-- [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) — presentation script
-- [`docs/TESTING.md`](docs/TESTING.md) · [`docs/QA_CHECKLIST.md`](docs/QA_CHECKLIST.md) — testing strategy & QA
-- [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) — clinical-calm design system
+| Document | Contents |
+|---|---|
+| [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md) | Executive summary and feature tour |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | System design and module boundaries |
+| [`docs/PRD.md`](docs/PRD.md) | Product requirements and MVP scope |
+| [`docs/API.md`](docs/API.md) | Full endpoint reference with schemas |
+| [`docs/AI_PIPELINE.md`](docs/AI_PIPELINE.md) | Extraction, validation, scoring, and routing internals |
+| [`DECISIONS.md`](DECISIONS.md) / [`docs/ENGINEERING_DECISIONS.md`](docs/ENGINEERING_DECISIONS.md) | Recorded trade-offs |
+| [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | Step-by-step live-demo script |
+
+## Product principles
+
+1. Reliability over novelty
+2. Deterministic validation over AI self-trust
+3. Traceability over black-box behavior
+4. Human review over unsafe automation
+5. MVP discipline over feature sprawl
