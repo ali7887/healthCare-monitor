@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     # unset or unrecognised.
     caretrace_log_level: str = "INFO"
 
+    # Deployment build reference. Vercel injects `VERCEL_GIT_COMMIT_SHA` at
+    # build time; other hosts can set it explicitly. Surfaced (short form) by
+    # /health so an operator can tell exactly which commit is serving traffic.
+    vercel_git_commit_sha: str | None = None
+
     # Database. Defaults to a local SQLite file so the app runs from a clean
     # checkout with zero external infrastructure (ideal for local dev and demos).
     # Point DATABASE_URL at Postgres for a production-like setup — the models are
@@ -103,6 +108,12 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         """CORS origins as a clean list (drops blanks/whitespace)."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def build_ref(self) -> str | None:
+        """Short commit SHA of the running build, when the host provides one."""
+        sha = (self.vercel_git_commit_sha or "").strip()
+        return sha[:7] or None
 
     @property
     def is_sqlite(self) -> bool:

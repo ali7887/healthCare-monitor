@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 
 from fastapi import APIRouter, Depends
 from fastapi import status as http_status
@@ -31,6 +32,10 @@ from app.schemas.health import HealthResponse, ReadinessResponse
 router = APIRouter(tags=["system"])
 
 _logger = get_logger("system")
+
+# Import time of this module ≈ process start; /health reports uptime relative
+# to it. On serverless hosts this is the lifetime of the current instance.
+_STARTED = time.monotonic()
 
 
 # user:password@ in a URL embedded in an error message — never log credentials.
@@ -88,7 +93,9 @@ def _log_probe_failure(db: Session, check: str, exc: Exception) -> None:
 def health(db: Session = Depends(get_db)):
     """Report service liveness and database connectivity.
 
-    Returns the stable ``{status, service}`` contract on success; **503** if the
+    On success the stable ``{status, service}`` contract is extended with safe
+    build metadata (``env``, ``version``, ``build``, ``uptime_s``) so an
+    operator can confirm *which* build is serving traffic; **503** if the
     database cannot be reached.
     """
     settings = get_settings()
@@ -108,7 +115,14 @@ def health(db: Session = Depends(get_db)):
                 },
             },
         )
-    return HealthResponse(status="ok", service=settings.service_name)
+    return HealthResponse(
+        status="ok",
+        service=settings.service_name,
+        env=settings.env,
+        version=settings.app_version,
+        build=settings.build_ref,
+        uptime_s=round(time.monotonic() - _STARTED, 1),
+    )
 
 
 @router.get("/ready", response_model=ReadinessResponse)

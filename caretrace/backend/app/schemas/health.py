@@ -4,10 +4,19 @@ from pydantic import BaseModel
 
 
 class HealthResponse(BaseModel):
-    """Response body for the liveness/health endpoint."""
+    """Response body for the liveness/health endpoint.
+
+    `version`/`build`/`uptime_s` are additive, safe metadata (no hosts, no
+    credentials): which build is serving traffic and how long this instance
+    has been up. `build` is None when the host injects no commit SHA.
+    """
 
     status: str
     service: str
+    env: str
+    version: str
+    build: str | None = None
+    uptime_s: float
 
 
 class ReadinessResponse(BaseModel):
