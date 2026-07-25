@@ -28,6 +28,7 @@ from app.services.persistence import (
     get_run,
     get_runs,
     pending_review_id,
+    review_decided_at,
     review_notes,
 )
 
@@ -74,6 +75,7 @@ def _to_detail(run: Run) -> RunDetailResponse:
         pending_review_id=pending_review_id(run),
         reasoning_summary=run.reasoning_summary,
         reviewer_notes=review_notes(run),
+        reviewed_at=review_decided_at(run),
     )
 
 

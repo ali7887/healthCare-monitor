@@ -17,6 +17,9 @@ class HealthResponse(BaseModel):
     version: str
     build: str | None = None
     uptime_s: float
+    # True when extractions run in demo/simulator mode (DEMO_MODE set, or no
+    # provider credentials configured) — the UI labels this state explicitly.
+    demo_mode: bool = False
 
 
 class ReadinessResponse(BaseModel):

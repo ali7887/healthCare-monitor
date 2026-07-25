@@ -77,6 +77,13 @@ class Settings(BaseSettings):
     # Left unset (None) by default, so behaviour is unchanged for local/demo.
     cors_origin_regex: str | None = None
 
+    # Demo / dry-run mode. Read from `DEMO_MODE` (accepts 1/true/yes). When
+    # true, every extraction uses the deterministic SimulatedProvider — no
+    # credentials or model servers needed. The factory also falls back to the
+    # simulator automatically when the OpenAI key is missing or Ollama is
+    # unreachable, so demos never error on absent infrastructure.
+    demo_mode: bool = False
+
     # Default provider selection (used by the orchestration factory)
     default_provider: str = "openai"
     default_model: str = "gpt-4o-mini"
@@ -108,6 +115,16 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         """CORS origins as a clean list (drops blanks/whitespace)."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def demo_mode_active(self) -> bool:
+        """True when extraction is (or would be) simulated for the default
+        provider — either DEMO_MODE is set, or the default is OpenAI and no key
+        is configured. Surfaced by /health so the UI can label simulator mode.
+        """
+        if self.demo_mode:
+            return True
+        return self.default_provider == "openai" and not self.openai_api_key
 
     @property
     def build_ref(self) -> str | None:

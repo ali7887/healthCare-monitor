@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Run, ValidationLog
@@ -258,6 +258,138 @@ def get_dashboard_stats(db: Session) -> dict[str, object]:
         "rejected_runs": _count(RoutingDecision.reject),
         "average_confidence": round(float(avg_confidence or 0.0), 4),
     }
+
+
+def search_runs(db: Session, *, query: str, limit: int = 10) -> list[Run]:
+    """Case-insensitive search across runs (newest first).
+
+    Matches the transcript text, the run id prefix, and the routing reason —
+    the fields an operator actually recalls. Deliberately a plain ILIKE query:
+    at MVP scale (hundreds of runs) an index-backed scan is instant, and no
+    search infrastructure is warranted.
+    """
+    pattern = f"%{query}%"
+    stmt = (
+        select(Run)
+        .where(
+            or_(
+                Run.transcript.ilike(pattern),
+                Run.routing_reason.ilike(pattern),
+                cast(Run.id, String).ilike(f"{query}%"),
+            )
+        )
+        .order_by(Run.created_at.desc())
+        .limit(limit)
+        .options(selectinload(Run.review_items))
+    )
+    return list(db.execute(stmt).scalars().all())
+
+
+def get_evaluation_summary(db: Session) -> dict[str, object]:
+    """Aggregate reliability metrics: status totals + per-provider comparison.
+
+    Shape matches docs/API.md → GET /api/evaluation. Rates are fractions of
+    that provider's runs; cost is the summed stored estimate.
+    """
+    status_rows = db.execute(
+        select(Run.status, func.count()).group_by(Run.status)
+    ).all()
+    by_status = {status.value: int(count) for status, count in status_rows}
+    totals = {
+        "runs": sum(by_status.values()),
+        **{status.value: by_status.get(status.value, 0) for status in RunStatus},
+    }
+
+    provider_rows = db.execute(
+        select(
+            Run.provider,
+            func.count(),
+            func.sum(
+                case((Run.routing_decision == RoutingDecision.auto_save, 1), else_=0)
+            ),
+            func.sum(case((Run.retry_count > 0, 1), else_=0)),
+            func.avg(Run.confidence),
+            func.avg(Run.latency_ms),
+            func.sum(Run.cost),
+        ).group_by(Run.provider)
+    ).all()
+
+    by_provider = [
+        {
+            "provider": provider.value,
+            "runs": int(runs),
+            "auto_save_rate": round(int(auto_saved or 0) / runs, 4),
+            "retry_rate": round(int(retried or 0) / runs, 4),
+            "avg_confidence": round(float(avg_confidence), 4)
+            if avg_confidence is not None
+            else None,
+            "avg_latency_ms": round(float(avg_latency), 1)
+            if avg_latency is not None
+            else None,
+            "estimated_cost_usd": round(float(total_cost or 0.0), 6),
+        }
+        for provider, runs, auto_saved, retried, avg_confidence, avg_latency, total_cost in provider_rows
+        if runs
+    ]
+    by_provider.sort(key=lambda row: row["provider"])
+
+    return {"totals": totals, "by_provider": by_provider}
+
+
+def get_evaluation_rows(db: Session) -> list[dict[str, object]]:
+    """Per-run metric rows for the evaluation export (newest first).
+
+    Only scalar columns are selected — no transcripts or clinical payloads, so
+    an export never carries clinical text into external analysis tools.
+    """
+    rows = db.execute(
+        select(
+            Run.id,
+            Run.provider,
+            Run.status,
+            Run.routing_decision,
+            Run.confidence,
+            Run.retry_count,
+            Run.warnings_count,
+            Run.latency_ms,
+            Run.cost,
+            Run.created_at,
+        ).order_by(Run.created_at.desc())
+    ).all()
+    return [
+        {
+            "run_id": str(run_id),
+            "provider": provider.value,
+            "status": status.value,
+            "routing_decision": routing.value if routing else None,
+            "confidence": confidence,
+            "retry_count": retry_count,
+            "warnings_count": warnings_count,
+            "latency_ms": latency_ms,
+            "cost_usd": cost,
+            "created_at": created_at.isoformat() if created_at else None,
+        }
+        for (
+            run_id,
+            provider,
+            status,
+            routing,
+            confidence,
+            retry_count,
+            warnings_count,
+            latency_ms,
+            cost,
+            created_at,
+        ) in rows
+    ]
+
+
+def review_decided_at(run: Run) -> datetime | None:
+    """When the human decision on this run was recorded (None while pending)."""
+    for item in run.review_items:
+        if item.status != ReviewStatus.pending:
+            return item.updated_at
+    return None
 
 
 def list_pending_reviews(

@@ -62,6 +62,9 @@ class RunDetailResponse(BaseModel):
     # Operator notes recorded on the review item — the read-only audit trail on
     # decided runs.
     reviewer_notes: str | None = None
+    # When the human decision was recorded (None while pending/undecided) —
+    # gives the audit trail a real timestamp for the human action.
+    reviewed_at: datetime | None = None
 
 
 class PaginatedRunResponse(BaseModel):

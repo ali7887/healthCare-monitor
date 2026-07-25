@@ -16,6 +16,15 @@ from app.services.providers import (
     RawCompletion,
     get_provider,
 )
+from app.services.providers import factory
+
+
+@pytest.fixture
+def providers_available(monkeypatch):
+    """Pretend real provider infrastructure exists (key set, Ollama up), so the
+    factory returns the real providers instead of the demo-safe simulator."""
+    monkeypatch.setattr(factory, "_openai_available", lambda settings: True)
+    monkeypatch.setattr(factory, "_ollama_available", lambda settings: True)
 
 
 class _FakeProvider(ExtractionProvider):
@@ -44,12 +53,12 @@ def test_unknown_prompt_version_raises():
         load_prompt("does-not-exist")
 
 
-def test_factory_returns_correct_types():
+def test_factory_returns_correct_types(providers_available):
     assert isinstance(get_provider("openai"), OpenAIProvider)
     assert isinstance(get_provider("ollama"), OllamaProvider)
 
 
-def test_factory_accepts_enum_like_and_overrides_model():
+def test_factory_accepts_enum_like_and_overrides_model(providers_available):
     class _EnumLike:
         value = "openai"
 

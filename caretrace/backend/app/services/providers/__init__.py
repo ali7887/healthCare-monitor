@@ -13,6 +13,7 @@ from app.services.providers.base import (
 from app.services.providers.factory import SUPPORTED_PROVIDERS, get_provider
 from app.services.providers.ollama_provider import OllamaProvider
 from app.services.providers.openai_provider import OpenAIProvider
+from app.services.providers.simulated import SimulatedProvider
 
 __all__ = [
     "ExtractionProvider",
@@ -21,6 +22,7 @@ __all__ = [
     "RawCompletion",
     "OpenAIProvider",
     "OllamaProvider",
+    "SimulatedProvider",
     "get_provider",
     "SUPPORTED_PROVIDERS",
 ]

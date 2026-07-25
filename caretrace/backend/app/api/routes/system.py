@@ -122,6 +122,7 @@ def health(db: Session = Depends(get_db)):
         version=settings.app_version,
         build=settings.build_ref,
         uptime_s=round(time.monotonic() - _STARTED, 1),
+        demo_mode=settings.demo_mode_active,
     )
 
 
