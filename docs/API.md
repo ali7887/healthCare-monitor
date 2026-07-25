@@ -62,12 +62,29 @@ Missing or unknown values are represented as `null` or omitted; the model must n
 ## Health
 
 ### GET `/api/health`
-Returns service health status.
+Returns service liveness, database connectivity, and safe build metadata.
 
 Response `200`:
 ```json
-{ "status": "ok" }
+{
+  "status": "ok",
+  "service": "healthCare-monitor-backend",
+  "env": "production",
+  "version": "0.1.0",
+  "build": "a4d3770",
+  "uptime_s": 1284.5,
+  "demo_mode": false
+}
 ```
+
+Notes:
+- `build` is the deployed commit short SHA (from `VERCEL_GIT_COMMIT_SHA`), or
+  `null` where the host injects none.
+- `demo_mode` is `true` when extractions run via the local simulator (either
+  `DEMO_MODE=true` or no provider credentials are configured). The UI labels
+  this state explicitly.
+- Returns `503` with a credential-free `diagnostics` object if the database is
+  unreachable.
 
 ## Processing
 
@@ -146,9 +163,15 @@ Response `200`:
   "issues": [ { "...": "ValidationIssue" } ],
   "retry_used": true,
   "confidence": 0.71,
+  "reviewer_notes": null,
+  "reviewed_at": null,
   "created_at": "2026-07-03T09:00:00Z"
 }
 ```
+
+Notes:
+- `reviewed_at` is the timestamp of the human decision (`null` while pending or
+  undecided); it anchors the human action in the run's audit trail.
 
 Errors:
 - `404` if the run does not exist.
@@ -269,6 +292,50 @@ Response `200`:
   ]
 }
 ```
+
+### GET `/api/evaluation/export`
+Download the evaluation dataset for external analysis (e.g. LangSmith, W&B).
+
+Query parameters:
+- `format` — `json` (default) or `csv`.
+
+Returns `200` with `Content-Disposition: attachment` and a filename like
+`caretrace-evaluation-2026-07-07.json`. JSON carries the aggregate summary plus
+one scalar-metrics row per run; CSV carries the per-run rows only. Exports
+contain **no transcripts or clinical payloads** — scalar metrics only.
+
+## Search
+
+### GET `/api/search`
+Backs the global Ctrl+K command palette. Case-insensitive match over transcript
+text, run-id prefix, and routing reason.
+
+Query parameters:
+- `q` — query string (2–200 chars; **required**).
+- `limit` — default 10, max 25.
+
+Response `200`:
+```json
+{
+  "query": "amlodipine",
+  "results": [
+    {
+      "run_id": "…",
+      "status": "needs_review",
+      "routing_decision": "human_review",
+      "confidence": 0.66,
+      "snippet": "…Amlodipine given, dose unclear…",
+      "created_at": "2026-07-06T10:00:00Z",
+      "pending_review": true
+    }
+  ]
+}
+```
+
+Notes:
+- `pending_review` flags runs with an undecided review item, so the palette can
+  group them as review-queue results.
+- Telemetry records only the query *length* and result count — never the text.
 
 ## Notes on stability
 - Field names must remain stable across backend, frontend, and docs.
