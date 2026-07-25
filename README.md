@@ -4,7 +4,7 @@
 
 [![Backend](https://img.shields.io/badge/backend-FastAPI%20%C2%B7%20Python%203.13-009688)](caretrace/backend)
 [![Frontend](https://img.shields.io/badge/frontend-Next.js%2015%20%C2%B7%20TypeScript-111111)](caretrace/frontend)
-[![Tests](https://img.shields.io/badge/tests-120%20backend%20%C2%B7%2049%20frontend-10b981)](docs/TESTING.md)
+[![Tests](https://img.shields.io/badge/tests-134%20backend%20%C2%B7%2065%20frontend-10b981)](docs/TESTING.md)
 [![Database](https://img.shields.io/badge/database-Postgres%20%2F%20SQLite-336791)](docs/DEPLOYMENT.md)
 
 CareTrace turns unstructured nursing/caregiver transcripts into structured clinical notes, then treats the model's output as **untrusted until proven otherwise**: every extraction passes deterministic schema and clinical-rule validation, receives a locally derived confidence score, and is either auto-saved or **flagged for human review**. Every run is stored as a complete, auditable trace.
@@ -35,6 +35,16 @@ Naive "call the model, store the JSON" pipelines fail exactly where healthcare c
 - **Human review as a first-class path** — including *edited approvals*, where a reviewer's correction is stored alongside (never over) the original extraction.
 - **Advisory AI second read.** A deterministic reviewer assistant flags potential clinical risks for the operator; it never approves, rejects, or mutates a run.
 - **Local-first observability.** Request-correlation IDs, structured JSON logs, and an in-app telemetry panel tie any UI action to the exact backend log line.
+- **Demo-safe by default.** With `DEMO_MODE=true` — or whenever no provider credentials are configured — extraction falls back to a deterministic local simulator, so the whole pipeline runs end-to-end with zero setup. Validation, confidence, and routing still run for real; the UI labels the state with a *Simulator mode* badge.
+
+## Operating the platform
+
+Beyond the core pipeline, the dashboard gives operators and analysts the tooling to work at speed:
+
+- **Global search (`Ctrl/Cmd + K`)** — a command palette over runs, the review queue, and transcript text, with quick navigation to any trace.
+- **Review keyboard shortcuts** — `A` approve, `R` reject, `E` edit, scoped to the focused review panel.
+- **Audit trail** — a per-run timeline of every AI and human action (parse, retries, flagged issues, routing, and the human decision) with timestamps.
+- **Evaluation dashboard + export** — per-provider reliability comparison (auto-save rate, retry rate, confidence, latency, cost), downloadable as JSON or CSV for external analysis.
 
 ## Processing flow
 
@@ -86,15 +96,15 @@ npm install
 npm run dev                          # http://localhost:3000
 ```
 
-To process live transcripts (optional), set `OPENAI_API_KEY` in the backend `.env`, or point `OLLAMA_BASE_URL` at a local Ollama instance.
+Out of the box this runs in **simulator mode** — no API key needed — so every screen and the processing flow work immediately. To process live transcripts, set `OPENAI_API_KEY` in the backend `.env`, or point `OLLAMA_BASE_URL` at a local Ollama instance and set `DEFAULT_PROVIDER=ollama`.
 
 **Production-like setup:** use Postgres (`DATABASE_URL=postgresql+psycopg://…`) with Alembic migrations (`uv run alembic upgrade head`). See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) and [`docs/GO_LIVE_VERCEL.md`](docs/GO_LIVE_VERCEL.md).
 
 ## Testing
 
 ```bash
-cd caretrace/backend  && uv run pytest        # 120 tests
-cd caretrace/frontend && npm test -- --run    # 49 tests
+cd caretrace/backend  && uv run pytest        # 134 tests
+cd caretrace/frontend && npm test -- --run    # 65 tests
 ```
 
 Test priorities mirror the product's reliability goals: schema validation, clinical rules, retry behavior, confidence scoring, and routing decisions. Details in [`docs/TESTING.md`](docs/TESTING.md).
@@ -109,7 +119,8 @@ Base path `/api` — stable, versionless contract documented in [`docs/API.md`](
 | Processing | `POST /process` |
 | Runs & traces | `GET /runs`, `GET /runs/{id}`, `GET /runs/{id}/trace` |
 | Review queue | `GET /review`, `POST /review/{id}/approve` · `/edit` · `/reject` |
-| Evaluation | `GET /evaluation` |
+| Evaluation | `GET /evaluation`, `GET /evaluation/export?format=json\|csv` |
+| Search | `GET /search?q=…` |
 
 ## Documentation
 
