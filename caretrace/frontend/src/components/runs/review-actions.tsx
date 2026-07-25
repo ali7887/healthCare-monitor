@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Loader2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ export function ReviewActions({ run }: { run: RunDetail }) {
   const [editing, setEditing] = useState(false);
   const [editedJson, setEditedJson] = useState(originalJson);
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const dirty = editing && editedJson !== originalJson;
 
@@ -68,10 +69,65 @@ export function ReviewActions({ run }: { run: RunDetail }) {
 
   const busy = action.isPending;
 
+  const focusEditArea = () => {
+    setEditing(true);
+    setJsonError(null);
+    if (!editing) setEditedJson(originalJson);
+    // Focus after the textarea mounts/re-renders.
+    requestAnimationFrame(() => editTextareaRef.current?.focus());
+  };
+
+  // Reviewer shortcuts — scoped to this panel (it must have focus within), and
+  // ignored while typing in any field so notes/edits can contain a/r/e freely.
+  const onPanelKeyDown = (event: React.KeyboardEvent) => {
+    if (!reviewId || busy || action.isSuccess) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target as HTMLElement;
+    if (
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLInputElement ||
+      target.isContentEditable
+    ) {
+      return;
+    }
+    const key = event.key.toLowerCase();
+    if (key === "a") {
+      event.preventDefault();
+      submit("approve");
+    } else if (key === "r") {
+      event.preventDefault();
+      submit("reject");
+    } else if (key === "e") {
+      event.preventDefault();
+      focusEditArea();
+    }
+  };
+
   return (
-    <Card className="border-primary/30" data-testid="review-actions">
-      <CardHeader>
+    <Card
+      className="border-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-testid="review-actions"
+      tabIndex={0}
+      onKeyDown={onPanelKeyDown}
+      aria-label="Human review panel. Shortcuts when focused: A approve, R reject, E edit."
+    >
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">Human review</CardTitle>
+        {/* Shortcut hints — active while the panel (not a text field) is focused. */}
+        <span
+          data-testid="shortcut-hints"
+          className="flex items-center gap-2 text-[11px] text-muted-foreground"
+        >
+          <span>
+            <kbd className="rounded border bg-muted px-1 font-mono">A</kbd> approve
+          </span>
+          <span>
+            <kbd className="rounded border bg-muted px-1 font-mono">R</kbd> reject
+          </span>
+          <span>
+            <kbd className="rounded border bg-muted px-1 font-mono">E</kbd> edit
+          </span>
+        </span>
       </CardHeader>
       <CardContent className="space-y-4">
         {!reviewId ? (
@@ -142,6 +198,7 @@ export function ReviewActions({ run }: { run: RunDetail }) {
                     {dirty ? <StatusBadge tone="warning">edited</StatusBadge> : null}
                   </div>
                   <Textarea
+                    ref={editTextareaRef}
                     aria-label="Edited output JSON"
                     spellCheck={false}
                     className="min-h-[180px] font-mono text-xs"

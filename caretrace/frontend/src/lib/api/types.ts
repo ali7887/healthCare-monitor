@@ -3,6 +3,12 @@
 export interface HealthStatus {
   status: string;
   service: string;
+  env?: string;
+  version?: string;
+  build?: string | null;
+  uptime_s?: number;
+  /** True when extractions run in demo/simulator mode (no credentials needed). */
+  demo_mode?: boolean;
 }
 
 export type Provider = "openai" | "ollama";
@@ -59,6 +65,8 @@ export interface RunDetail {
   pending_review_id: string | null;
   reasoning_summary: string | null;
   reviewer_notes: string | null;
+  /** When the human decision was recorded (null while pending/undecided). */
+  reviewed_at: string | null;
 }
 
 export interface PaginatedRuns {
@@ -112,6 +120,49 @@ export interface ReviewActionResponse {
   run_id: string;
   status: ReviewStatus;
   run_status: RunStatus;
+}
+
+// --- Global search (Ctrl+K palette) ------------------------------------------
+
+export interface SearchResult {
+  run_id: string;
+  status: RunStatus;
+  routing_decision: RoutingDecision | null;
+  confidence: number | null;
+  snippet: string;
+  created_at: string;
+  pending_review: boolean;
+}
+
+export interface SearchResponse {
+  query: string;
+  results: SearchResult[];
+}
+
+// --- Evaluation dashboard -----------------------------------------------------
+
+export interface EvaluationTotals {
+  runs: number;
+  auto_saved: number;
+  needs_review: number;
+  reviewed: number;
+  rejected: number;
+  failed: number;
+}
+
+export interface ProviderEvaluation {
+  provider: Provider;
+  runs: number;
+  auto_save_rate: number;
+  retry_rate: number;
+  avg_confidence: number | null;
+  avg_latency_ms: number | null;
+  estimated_cost_usd: number;
+}
+
+export interface EvaluationSummary {
+  totals: EvaluationTotals;
+  by_provider: ProviderEvaluation[];
 }
 
 // --- AI Reviewer Assistant (Phase 21) ---------------------------------------

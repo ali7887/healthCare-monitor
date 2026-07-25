@@ -36,6 +36,7 @@ function makeRun(over: Partial<RunDetail> = {}): RunDetail {
     pending_review_id: "rev-1",
     reasoning_summary: null,
     reviewer_notes: null,
+    reviewed_at: null,
     ...over,
   };
 }

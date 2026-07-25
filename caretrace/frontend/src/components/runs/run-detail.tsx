@@ -12,6 +12,7 @@ import {
 import { AiAssistantPanel } from "@/components/reviewer/ai-assistant-panel";
 import { ReasoningPanel } from "@/components/runs/reasoning-panel";
 import { ReviewActions } from "@/components/runs/review-actions";
+import { AuditTrail } from "@/components/runs/audit-trail";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/client";
@@ -287,6 +288,8 @@ export function RunDetailView({ runId }: { runId: string }) {
           <MetadataPanel run={run} />
         </div>
       </div>
+
+      <AuditTrail run={run} />
     </div>
   );
 }

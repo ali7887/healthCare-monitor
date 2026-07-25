@@ -36,6 +36,7 @@ function makeRun(over: Partial<RunDetail> = {}): RunDetail {
     pending_review_id: "rev-1",
     reasoning_summary: null,
     reviewer_notes: null,
+    reviewed_at: null,
     ...over,
   };
 }
@@ -164,5 +165,57 @@ describe("ReviewActions", () => {
 
     resolve(OK_RESPONSE);
     expect(await screen.findByText(/decision recorded/i)).toBeInTheDocument();
+  });
+
+  it("shows the A / R / E shortcut hints", () => {
+    renderWithClient(<ReviewActions run={makeRun()} />);
+    const hints = screen.getByTestId("shortcut-hints");
+    expect(hints).toHaveTextContent(/approve/i);
+    expect(hints).toHaveTextContent(/reject/i);
+    expect(hints).toHaveTextContent(/edit/i);
+  });
+
+  it("approves when 'A' is pressed with the panel focused", async () => {
+    renderWithClient(<ReviewActions run={makeRun()} />);
+    fireEvent.keyDown(screen.getByTestId("review-actions"), { key: "a" });
+
+    await waitFor(() =>
+      expect(postReviewAction).toHaveBeenCalledWith("rev-1", {
+        action: "approve",
+        reviewer_notes: null,
+        edited_output: null,
+      })
+    );
+  });
+
+  it("rejects when 'R' is pressed with the panel focused", async () => {
+    postReviewAction.mockResolvedValue({ ...OK_RESPONSE, status: "rejected", run_status: "rejected" });
+    renderWithClient(<ReviewActions run={makeRun()} />);
+    fireEvent.keyDown(screen.getByTestId("review-actions"), { key: "r" });
+
+    await waitFor(() =>
+      expect(postReviewAction).toHaveBeenCalledWith(
+        "rev-1",
+        expect.objectContaining({ action: "reject" })
+      )
+    );
+  });
+
+  it("'E' opens and focuses the edit area", async () => {
+    renderWithClient(<ReviewActions run={makeRun()} />);
+    expect(screen.queryByLabelText(/edited output json/i)).not.toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByTestId("review-actions"), { key: "e" });
+
+    const editor = await screen.findByLabelText(/edited output json/i);
+    await waitFor(() => expect(editor).toHaveFocus());
+    expect(postReviewAction).not.toHaveBeenCalled();
+  });
+
+  it("ignores shortcut keys while typing in a text field", async () => {
+    renderWithClient(<ReviewActions run={makeRun()} />);
+    // Typing 'a'/'r'/'e' into the notes field must not trigger a decision.
+    await userEvent.type(screen.getByLabelText(/reviewer notes/i), "are");
+    expect(postReviewAction).not.toHaveBeenCalled();
   });
 });

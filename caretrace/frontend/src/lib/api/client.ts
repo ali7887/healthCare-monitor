@@ -5,6 +5,9 @@ import { recordEvent } from "@/lib/telemetry";
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
+/** Public base URL — for plain download links (e.g. evaluation export). */
+export const API_BASE_URL = BASE_URL;
+
 /** Backend correlation header — echoed by RequestContextMiddleware. */
 const REQUEST_ID_HEADER = "X-Request-ID";
 

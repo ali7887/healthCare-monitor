@@ -1,7 +1,9 @@
 import { ObservabilityPanel } from "@/components/dev/observability-panel";
 import { ApiStatus } from "@/components/layout/api-status";
+import { Footer } from "@/components/layout/footer";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
+import { CommandPalette } from "@/components/search/command-palette";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function DashboardLayout({
@@ -19,6 +21,7 @@ export default function DashboardLayout({
             healthCare-monitor
           </span>
           <div className="ml-auto flex items-center gap-2">
+            <CommandPalette />
             <ApiStatus />
             <ThemeToggle />
           </div>
@@ -26,6 +29,7 @@ export default function DashboardLayout({
         <main className="mx-auto w-full max-w-7xl flex-1 space-y-6 p-4 sm:p-6">
           {children}
         </main>
+        <Footer />
       </div>
       <ObservabilityPanel />
     </div>
